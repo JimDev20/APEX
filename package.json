@@ -1,0 +1,14 @@
+{
+  "name": "apex-physiotherapy",
+  "version": "1.0.0",
+  "description": "APEX Physiotherapy — full-stack clinic website with live booking (based on the APEX guide)",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

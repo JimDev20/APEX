@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APEX — Admin · Bookings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    body { padding-top: 70px; }
+    .admin-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 26px; }
+    .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+    .filters input, .filters select {
+      background: var(--bg-soft); border: 1px solid var(--line); color: var(--text);
+      border-radius: 10px; padding: 10px 14px; font-family: inherit;
+    }
+    .bookings { display: grid; gap: 14px; }
+    .bk-card {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+      padding: 20px; display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: start;
+    }
+    .bk-card strong { font-size: 1.05rem; }
+    .bk-meta { color: var(--muted); font-size: 0.88rem; margin-top: 6px; line-height: 1.7; }
+    .bk-meta span { color: var(--accent); }
+    .bk-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+    .btn-danger { background: none; border: 1px solid rgba(255,122,122,0.4); color: #ff7a7a; border-radius: 10px; padding: 8px 14px; font-size: 0.85rem; }
+    .btn-danger:hover { background: rgba(255,122,122,0.12); }
+    .empty { text-align: center; color: var(--muted); padding: 60px 0; }
+    .count-badge { background: var(--accent-dim); color: var(--accent); border-radius: 999px; padding: 4px 12px; font-size: 0.85rem; font-weight: 600; }
+    @media (max-width: 640px) {
+      .bk-card { grid-template-columns: 1fr; }
+      .bk-actions { align-items: stretch; flex-direction: row; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav scrolled">
+    <a class="nav-logo" href="/">APEX</a>
+    <ul class="nav-links">
+      <li><a href="/">Back to site</a></li>
+      <li><a href="/api/bookings" target="_blank" rel="noopener">API JSON</a></li>
+    </ul>
+  </nav>
+
+  <main class="container">
+    <div class="admin-head">
+      <div>
+        <p class="eyebrow">ADMIN</p>
+        <h1 class="section-title" style="text-align:left">Bookings</h1>
+      </div>
+      <span class="count-badge" id="count">0</span>
+    </div>
+    <div class="filters">
+      <input id="fSearch" type="search" placeholder="Search name / email / service…" />
+      <select id="fService"><option value="">All services</option></select>
+    </div>
+    <div class="bookings" id="list"></div>
+    <p class="empty" id="empty" hidden>No bookings yet.</p>
+  </main>
+
+  <script src="/js/admin.js"></script>
+</body>
+</html>
