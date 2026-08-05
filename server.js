@@ -1,18 +1,29 @@
 import express from "express";
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_DIR = path.join(__dirname, "data");
+
+const IS_VERCEL = !!process.env.VERCEL;
+const DATA_DIR = IS_VERCEL
+  ? path.join(os.tmpdir(), "apex-data")
+  : path.join(__dirname, "data");
 const DATA_FILE = path.join(DATA_DIR, "bookings.json");
 
-fs.mkdirSync(DATA_DIR, { recursive: true });
-if (!fs.existsSync(DATA_FILE)) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify({ bookings: [] }, null, 2));
+let memoryStore = { bookings: [] };
+function loadStore() {
+  try {
+    if (fs.existsSync(DATA_FILE)) memoryStore = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
+  } catch {
+    memoryStore = { bookings: [] };
+  }
+  if (!memoryStore || !Array.isArray(memoryStore.bookings)) memoryStore = { bookings: [] };
 }
+loadStore();
 
 const SERVICE_TIMES = [
   { id: "morning", label: "Morning", slots: ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30"] },
@@ -21,11 +32,17 @@ const SERVICE_TIMES = [
 ];
 
 function readData() {
-  return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
+  return JSON.parse(JSON.stringify(memoryStore));
 }
 
 function writeData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  memoryStore = data;
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.warn("Persist skipped (read-only filesystem):", err.message);
+  }
 }
 
 app.use(express.json());
@@ -96,7 +113,13 @@ app.get("/admin", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "admin.html"));
 });
 
-app.listen(PORT, () => {
-  console.log(`APEX Physiotherapy running at http://localhost:${PORT}`);
-  console.log(`Booking API: http://localhost:${PORT}/api/bookings`);
-});
+const isMain =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  app.listen(PORT, () => {
+    console.log(`APEX Physiotherapy running at http://localhost:${PORT}`);
+    console.log(`Booking API: http://localhost:${PORT}/api/bookings`);
+  });
+}
+
+export default app;
