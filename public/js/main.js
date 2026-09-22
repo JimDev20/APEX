@@ -311,12 +311,22 @@ $("#bookingForm").addEventListener("submit", async (e) => {
 /* ---------- Modal ---------- */
 function openModal(html) {
   $("#modalBody").innerHTML = html;
+  $("#modal").classList.remove("closing");
   $("#modal").hidden = false;
   document.body.style.overflow = "hidden";
 }
 $("#modalClose").addEventListener("click", closeModal);
 $("#modal").addEventListener("click", (e) => { if (e.target === $("#modal")) closeModal(); });
-function closeModal() { $("#modal").hidden = true; document.body.style.overflow = ""; }
+function closeModal() {
+  if ($("#modal").hidden) return;
+  const modal = $("#modal");
+  modal.classList.add("closing");
+  window.setTimeout(() => {
+    modal.hidden = true;
+    modal.classList.remove("closing");
+    document.body.style.overflow = "";
+  }, 200);
+}
 
 /* ---------- Animations ---------- */
 function initAnimations() {
