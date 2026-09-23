@@ -48,6 +48,19 @@ function writeData(data) {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+const ALL_SLOTS = new Set(SERVICE_TIMES.flatMap((s) => s.slots));
+const LEAD_MS = 30 * 60 * 1000;
+
+function therapistKey(t) {
+  const v = String(t || "").trim();
+  if (!v || v.toLowerCase() === "any" || v.toLowerCase() === "first available") return "any";
+  return v;
+}
+
+function slotConflicts(a, b) {
+  return a === "any" || b === "any" || a === b;
+}
+
 app.get("/api/slots", (req, res) => {
   res.json(SERVICE_TIMES);
 });
@@ -58,33 +71,60 @@ app.get("/api/bookings", (req, res) => {
 });
 
 app.post("/api/bookings", (req, res) => {
-  const { name, email, phone, service, therapist, date, time, notes } = req.body || {};
+  const body = req.body || {};
+  const name = String(body.name || "").trim();
+  const email = String(body.email || "").trim();
+  const phone = String(body.phone || "").trim().slice(0, 40);
+  const service = String(body.service || "").trim();
+  const therapist = String(body.therapist || "").trim();
+  const date = String(body.date || "").trim();
+  const time = String(body.time || "").trim();
+  const notes = String(body.notes || "").trim().slice(0, 1000);
 
   if (!name || !email || !service || !date || !time) {
     return res.status(400).json({ error: "Missing required fields (name, email, service, date, time)." });
   }
+  if (name.length > 120 || email.length > 200) {
+    return res.status(400).json({ error: "Name or email is too long." });
+  }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return res.status(400).json({ error: "Please provide a valid email address." });
+  }
+  if (!ALL_SLOTS.has(time)) {
+    return res.status(400).json({ error: "Invalid time slot." });
+  }
 
   const isoDate = new Date(date + "T00:00:00");
-  if (Number.isNaN(isoDate.getTime()) || isoDate < new Date(new Date().toDateString())) {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  if (Number.isNaN(isoDate.getTime()) || isoDate < todayStart) {
     return res.status(400).json({ error: "Date must be today or in the future." });
   }
 
+  const slotDate = new Date(date + "T" + time + ":00");
+  if (Number.isNaN(slotDate.getTime()) || slotDate.getTime() <= Date.now() + LEAD_MS) {
+    return res.status(400).json({ error: "That time has already passed — please pick a later slot." });
+  }
+
+  const key = therapistKey(therapist);
   const data = readData();
-  const clash = data.bookings.find((b) => b.date === date && b.time === time && b.therapist === (therapist || "any"));
+  const clash = data.bookings.find(
+    (b) => b.date === date && b.time === time && slotConflicts(therapistKey(b.therapist), key)
+  );
   if (clash) {
     return res.status(409).json({ error: "That time slot is already booked. Please pick another." });
   }
 
   const booking = {
-    id: "bk_" + Date.now().toString(36),
+    id: "bk_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name,
     email,
-    phone: phone || "",
+    phone,
     service,
-    therapist: therapist || "First available",
+    therapist: key === "any" ? "First available" : key,
     date,
     time,
-    notes: notes || "",
+    notes,
     created: new Date().toISOString(),
   };
 

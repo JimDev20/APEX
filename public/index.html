@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>APEX — Physiotherapy · Recovery · Movement</title>
   <meta name="description" content="APEX Physiotherapy. Performance. Recovery. Movement. Book a session with one of our specialists." />
+  <meta name="theme-color" content="#0b0e0c" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0e0c'/%3E%3Ctext x='32' y='44' font-family='sans-serif' font-size='34' font-weight='700' fill='%233ddc84' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -12,10 +14,12 @@
 </head>
 <body>
 
+  <a class="skip-link" href="#booking">Skip to booking</a>
+
   <!-- NAV -->
   <nav class="nav" id="nav">
     <a class="nav-logo" href="#hero">APEX</a>
-    <button class="nav-toggle" id="navToggle" aria-label="Menu"><span></span><span></span><span></span></button>
+    <button class="nav-toggle" id="navToggle" aria-label="Menu" aria-expanded="false" aria-controls="navLinks"><span></span><span></span><span></span></button>
     <ul class="nav-links" id="navLinks">
       <li><a href="#therapists">Therapists</a></li>
       <li><a href="#services">Services</a></li>
@@ -244,7 +248,7 @@
           <div class="slots" id="slotsGrid"></div>
         </div>
         <button type="submit" class="btn btn-primary btn-block">Confirm booking</button>
-        <p class="form-msg" id="formMsg"></p>
+        <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
       </form>
     </div>
   </section>
@@ -267,7 +271,7 @@
     </div>
   </footer>
 
-  <div class="modal" id="modal" hidden>
+  <div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-label="Details">
     <div class="modal-card">
       <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
       <div class="modal-body" id="modalBody"></div>

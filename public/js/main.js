@@ -55,14 +55,26 @@ const THERAPISTS = [
   },
 ];
 
-const THEME = {
-  "Ryan Cole": "linear-gradient(135deg,#3ddc84,#0f3d22)",
-  "Sophie Chen": "linear-gradient(135deg,#2fd3f0,#0d2e3a)",
-  "Alex Turner": "linear-gradient(135deg,#f0a02f,#3a230d)",
-};
-
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
+
+const hasGsap = typeof window.gsap !== "undefined";
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const LEAD_MS = 30 * 60 * 1000; /* minimum lead time before a slot */
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function therapistKey(t) {
+  const v = String(t || "").trim();
+  if (!v || v.toLowerCase() === "any" || v.toLowerCase() === "first available") return "any";
+  return v;
+}
+
+function slotConflicts(a, b) {
+  return a === "any" || b === "any" || a === b;
+}
 
 /* ---------- SVG placeholder avatar ---------- */
 function svgAvatar(text, colorA, colorB) {
@@ -79,14 +91,22 @@ function svgAvatar(text, colorA, colorB) {
   return "data:image/svg+xml," + encodeURIComponent(svg);
 }
 
+function avatarColors(t) {
+  const parts = t.color.split("#");
+  return ["#" + parts[1].slice(0, 6), "#" + parts[2].slice(0, 6)];
+}
+
 /* ---------- Renderers ---------- */
 function renderTherapists() {
   const stage = $("#stageCards");
-  stage.innerHTML = THERAPISTS.map((t, i) => `
-    <button class="char-card ${i === 0 ? "active" : "inactive"}" data-i="${i}">
-      <img src="${svgAvatar(t.short, t.color.split("#")[1].slice(0, 6), t.color.split("#")[2].slice(0, 6))}" alt="${t.name}" />
-      <span class="cc-name">${t.name}</span>
-    </button>`).join("");
+  stage.innerHTML = THERAPISTS.map((t, i) => {
+    const [a, b] = avatarColors(t);
+    return `
+    <button type="button" class="char-card ${i === 0 ? "active" : "inactive"}" data-i="${i}" aria-label="Select ${escapeHtml(t.name)}">
+      <img src="${svgAvatar(t.short, a, b)}" alt="${escapeHtml(t.name)}" />
+      <span class="cc-name">${escapeHtml(t.name)}</span>
+    </button>`;
+  }).join("");
   $$(".char-card").forEach((c) => c.addEventListener("click", () => selectTherapist(+c.dataset.i)));
   selectTherapist(0, true);
 }
@@ -103,16 +123,18 @@ function selectTherapist(i, instant = false) {
   $("#cpName").textContent = t.name;
   $("#cpRole").textContent = t.role;
   $("#cpBio").textContent = t.bio;
-  $("#cpSig").innerHTML = t.sig.map((s) => `<span class="sig-chip">${s}</span>`).join("");
-  if (instant) {
-    $("#barMob").style.width = t.mob + "%";
-    $("#barTrain").style.width = t.train + "%";
-    $("#barExp").style.width = t.exp + "%";
+  $("#cpSig").innerHTML = t.sig.map((s) => `<span class="sig-chip">${escapeHtml(s)}</span>`).join("");
+  const setBar = (id, val) => { $("#" + id).style.width = val + "%"; };
+  if (instant || !hasGsap) {
+    setBar("barMob", t.mob);
+    setBar("barTrain", t.train);
+    setBar("barExp", t.exp);
   } else {
     gsap.to("#barMob", { width: t.mob + "%", duration: 0.7, ease: "power2.out" });
     gsap.to("#barTrain", { width: t.train + "%", duration: 0.7, ease: "power2.out", delay: 0.08 });
     gsap.to("#barExp", { width: t.exp + "%", duration: 0.7, ease: "power2.out", delay: 0.16 });
   }
+  renderSlots();
   return t;
 }
 
@@ -122,76 +144,121 @@ $("#cpBook").addEventListener("click", () => {
   const t = $("#stageCards .char-card.active");
   const name = t ? THERAPISTS[+t.dataset.i].name : "";
   $("#bkTherapist").value = name;
-  document.querySelector("#booking").scrollIntoView({ behavior: "smooth" });
+  renderSlots();
+  document.querySelector("#booking").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
 });
 function cycle(dir) {
-  const active = +$("#stageCards .char-card.active").dataset.i;
+  const activeCard = $("#stageCards .char-card.active");
+  if (!activeCard) return;
+  const active = +activeCard.dataset.i;
   const next = (active + dir + THERAPISTS.length) % THERAPISTS.length;
   selectTherapist(next);
 }
 
 function renderServices() {
   $("#servicesGrid").innerHTML = SERVICES.map((s) => `
-    <button class="card" data-svc="${s.id}">
-      <div class="card-icon">${s.icon}</div>
-      <h3>${s.name}</h3>
-      <p>${s.desc}</p>
-      <div class="card-meta">${s.meta}</div>
+    <button type="button" class="card" data-svc="${s.id}">
+      <div class="card-icon" aria-hidden="true">${s.icon}</div>
+      <h3>${escapeHtml(s.name)}</h3>
+      <p>${escapeHtml(s.desc)}</p>
+      <div class="card-meta">${escapeHtml(s.meta)}</div>
     </button>`).join("");
   $$("#servicesGrid .card").forEach((c) =>
-    c.addEventListener("click", () => openModal(
-      `<h3>${SERVICES.find((s) => s.id === c.dataset.svc).name}</h3>
-       <p>${SERVICES.find((s) => s.id === c.dataset.svc).desc}</p>
-       <p style="margin-top:10px"><strong>${SERVICES.find((s) => s.id === c.dataset.svc).meta}</strong> · typically 3–6 sessions to first review.</p>`
-    ))
+    c.addEventListener("click", () => {
+      const s = SERVICES.find((x) => x.id === c.dataset.svc);
+      openModal(
+        `<h3>${escapeHtml(s.name)}</h3>
+         <p>${escapeHtml(s.desc)}</p>
+         <p style="margin-top:10px"><strong>${escapeHtml(s.meta)}</strong> · typically 3–6 sessions to first review.</p>
+         <a class="btn btn-primary wa" href="#booking" data-close-modal>Book this treatment</a>`
+      );
+    })
   );
 }
 
 function renderMethods() {
   $("#methodsGrid").innerHTML = METHODS.map((m) => `
     <div class="method">
-      <span class="method-num">${m.num}</span>
-      <h3>${m.name}</h3>
-      <p>${m.desc}</p>
+      <span class="method-num" aria-hidden="true">${m.num}</span>
+      <h3>${escapeHtml(m.name)}</h3>
+      <p>${escapeHtml(m.desc)}</p>
     </div>`).join("");
 }
 
 function renderGallery() {
   $("#galleryGrid").innerHTML = GALLERY.map((g) => `
     <div class="g-item" style="background:${g.bg}">
-      <div><h3>${g.title}</h3><span>${g.tag}</span></div>
+      <div><h3>${escapeHtml(g.title)}</h3><span>${escapeHtml(g.tag)}</span></div>
     </div>`).join("");
 }
 
 function renderTestimonials() {
   $("#tTrack").innerHTML = TESTIMONIALS.map((t) => `
     <div class="t-slide">
-      <div class="t-stars">${"★".repeat(t.stars)}</div>
-      <p class="t-quote">“${t.quote}”</p>
-      <p class="t-name">${t.name}</p>
-      <p class="t-tag">${t.tag}</p>
+      <div class="t-stars" aria-label="${t.stars} out of 5 stars">${"★".repeat(t.stars)}</div>
+      <p class="t-quote">“${escapeHtml(t.quote)}”</p>
+      <p class="t-name">${escapeHtml(t.name)}</p>
+      <p class="t-tag">${escapeHtml(t.tag)}</p>
     </div>`).join("");
-  $("#tDots").innerHTML = TESTIMONIALS.map((_, i) => `<span class="${i === 0 ? "on" : ""}" data-d="${i}"></span>`).join("");
-  $$("#tDots span").forEach((d) => d.addEventListener("click", () => goSlide(+d.dataset.d)));
-  $("#tPrev").addEventListener("click", () => goSlide(tIndex - 1));
-  $("#tNext").addEventListener("click", () => goSlide(tIndex + 1));
+  $("#tDots").innerHTML = TESTIMONIALS.map((_, i) =>
+    `<span class="${i === 0 ? "on" : ""}" data-d="${i}" role="button" tabindex="0" aria-label="Review ${i + 1}"></span>`).join("");
+  $$("#tDots span").forEach((d) => {
+    d.addEventListener("click", () => goSlide(+d.dataset.d));
+    d.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goSlide(+d.dataset.d); } });
+  });
+  $("#tPrev").addEventListener("click", () => { goSlide(tIndex - 1); restartAuto(); });
+  $("#tNext").addEventListener("click", () => { goSlide(tIndex + 1); restartAuto(); });
+  startAuto();
 }
+
 let tIndex = 0;
+let tTimer = null;
+
 function goSlide(i) {
   tIndex = (i + TESTIMONIALS.length) % TESTIMONIALS.length;
-  gsap.to("#tTrack", { x: -tIndex * 100 + "%", duration: 0.55, ease: "power2.out" });
+  $("#tTrack").style.transform = `translateX(-${tIndex * 100}%)`;
   $$("#tDots span").forEach((d, di) => d.classList.toggle("on", di === tIndex));
 }
+
+function startAuto() {
+  if (reduceMotion || tTimer) return;
+  tTimer = setInterval(() => { if (!document.hidden) goSlide(tIndex + 1); }, 6000);
+}
+function stopAuto() { if (tTimer) { clearInterval(tTimer); tTimer = null; } }
+function restartAuto() { stopAuto(); startAuto(); }
 
 /* ---------- Booking calendar ---------- */
 const now = new Date();
 let calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 let selectedDate = "";
 let selectedTime = "";
-let bookedSlots = {};
+let allBookings = [];
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const SLOT_TIMES = ["09:00","09:30","10:00","10:30","11:00","11:30","13:00","13:30","14:00","14:30","15:00","15:30","17:00","17:30","18:00","18:30","19:00"];
+
+function toISO(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function fmtDate(iso) {
+  const d = new Date(iso + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+}
+
+function slotIsPast(iso, time) {
+  const [h, m] = time.split(":").map(Number);
+  const d = new Date(iso + "T00:00:00");
+  d.setHours(h, m, 0, 0);
+  return d.getTime() <= Date.now() + LEAD_MS;
+}
+
+function slotTaken(iso, time, selKey) {
+  return allBookings.some((b) =>
+    b.date === iso && b.time === time && slotConflicts(therapistKey(b.therapist), selKey)
+  );
+}
 
 function renderCalendar() {
   $("#calMonth").textContent = MONTHS[calMonth.getMonth()] + " " + calMonth.getFullYear();
@@ -203,23 +270,20 @@ function renderCalendar() {
   let html = "";
   for (let i = 0; i < cellCount; i++) {
     const dayNum = i - lead + 1;
-    if (dayNum < 1 || dayNum > daysInMonth) { html += `<button type="button" class="cal-day other" disabled></button>`; continue; }
+    if (dayNum < 1 || dayNum > daysInMonth) { html += `<button type="button" class="cal-day other" disabled tabindex="-1"></button>`; continue; }
     const date = new Date(calMonth.getFullYear(), calMonth.getMonth(), dayNum);
     const iso = toISO(date);
     const past = date.getTime() < todayStart;
     const selected = iso === selectedDate;
-    html += `<button type="button" class="cal-day ${past ? "past" : ""} ${selected ? "selected" : ""}"
-      data-iso="${iso}" ${past ? "disabled" : ""}>${dayNum}</button>`;
+    const isToday = iso === toISO(new Date());
+    html += `<button type="button" class="cal-day ${past ? "past" : ""} ${selected ? "selected" : ""} ${isToday ? "today" : ""}"
+      data-iso="${iso}" aria-label="${fmtDate(iso)}${past ? " (unavailable)" : ""}${selected ? " (selected)" : ""}" ${past ? "disabled" : ""}>${dayNum}</button>`;
   }
   $("#calGrid").innerHTML = html;
   $$("#calGrid .cal-day:not(:disabled)").forEach((d) =>
     d.addEventListener("click", () => pickDate(d.dataset.iso)));
   $("#calPrev").disabled = calMonth.getFullYear() === now.getFullYear() && calMonth.getMonth() === now.getMonth();
   $("#calNext").disabled = calMonth.getFullYear() === now.getFullYear() + 1;
-}
-
-function toISO(d) {
-  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
 
 function pickDate(iso) {
@@ -232,27 +296,35 @@ function pickDate(iso) {
 
 function renderSlots() {
   const wrap = $("#slotsDate");
-  if (!selectedDate) { wrap.textContent = ""; $("#slotsGrid").innerHTML = "<p style='grid-column:1/-1;color:var(--muted);font-size:0.85rem'>Select a date first.</p>"; return; }
-  wrap.textContent = selectedDate;
-  const taken = bookedSlots[selectedDate] || [];
-  $("#slotsGrid").innerHTML = SLOT_TIMES.map((t) => `
-    <button type="button" class="slot ${t === selectedTime ? "selected" : ""}" data-t="${t}" ${taken.includes(t) ? "disabled" : ""}>${t}</button>`).join("");
+  const grid = $("#slotsGrid");
+  if (!selectedDate) {
+    wrap.textContent = "";
+    grid.innerHTML = "<p class='slots-hint'>Select a date first.</p>";
+    return;
+  }
+  wrap.textContent = "· " + fmtDate(selectedDate);
+  const selKey = therapistKey($("#bkTherapist").value);
+  grid.innerHTML = SLOT_TIMES.map((t) => {
+    const taken = slotTaken(selectedDate, t, selKey);
+    const past = slotIsPast(selectedDate, t);
+    const disabled = taken || past;
+    const label = taken ? " (booked)" : past ? " (past)" : "";
+    return `<button type="button" class="slot ${t === selectedTime ? "selected" : ""}" data-t="${t}"
+      ${disabled ? "disabled" : ""} aria-label="${t}${label}" aria-pressed="${t === selectedTime}">${t}</button>`;
+  }).join("");
   $$("#slotsGrid .slot:not(:disabled)").forEach((s) =>
     s.addEventListener("click", () => { selectedTime = s.dataset.t; renderSlots(); }));
 }
 
 $("#calPrev").addEventListener("click", () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderCalendar(); });
 $("#calNext").addEventListener("click", () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderCalendar(); });
+$("#bkTherapist").addEventListener("change", () => { selectedTime = ""; renderSlots(); });
 
 async function loadBookedSlots() {
   try {
     const res = await fetch("/api/bookings");
     const data = await res.json();
-    bookedSlots = {};
-    (data.bookings || []).forEach((b) => {
-      bookedSlots[b.date] = bookedSlots[b.date] || [];
-      bookedSlots[b.date].push(b.time);
-    });
+    allBookings = data.bookings || [];
     renderSlots();
   } catch { /* offline: allow all */ }
 }
@@ -261,6 +333,7 @@ async function loadBookedSlots() {
 $("#bookingForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const msg = $("#formMsg");
+  const btn = $("#bookingForm button[type=submit]");
   const payload = {
     name: $("#bkName").value.trim(),
     email: $("#bkEmail").value.trim(),
@@ -271,18 +344,21 @@ $("#bookingForm").addEventListener("submit", async (e) => {
     time: selectedTime,
     notes: $("#bkNotes").value.trim(),
   };
+  const fail = (text) => { msg.className = "form-msg err"; msg.textContent = text; };
   if (!payload.name || !payload.email || !payload.service || !payload.date || !payload.time) {
-    msg.className = "form-msg err";
-    msg.textContent = "Please fill in your name, email, service, and pick a date + time.";
-    return;
+    return fail("Please fill in your name, email, service, and pick a date + time.");
   }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(payload.email)) {
-    msg.className = "form-msg err";
-    msg.textContent = "That email address doesn't look right.";
-    return;
+    return fail("That email address doesn't look right.");
+  }
+  if (slotIsPast(payload.date, payload.time)) {
+    return fail("That time is too soon — please pick a later slot.");
   }
   msg.className = "form-msg";
   msg.textContent = "Booking…";
+  btn.disabled = true;
+  btn.dataset.label = btn.textContent;
+  btn.textContent = "Booking…";
   try {
     const res = await fetch("/api/bookings", {
       method: "POST",
@@ -291,32 +367,43 @@ $("#bookingForm").addEventListener("submit", async (e) => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Booking failed.");
+    const b = data.booking;
     openModal(
-      `<h3>You're booked, ${data.booking.name.split(" ")[0]}. 🎉</h3>
-       <p>${data.booking.service} · ${data.booking.date} at ${data.booking.time}<br>with ${data.booking.therapist}.</p>
-       <p style="margin-top:10px">A confirmation is on its way to ${data.booking.email}.</p>
-       <a class="btn btn-primary wa" href="${data.whatsapp}" target="_blank" rel="noopener">Confirm on WhatsApp</a>`
+      `<h3>You're booked, ${escapeHtml(String(b.name).split(" ")[0] || "there")}. 🎉</h3>
+       <p>${escapeHtml(b.service)} · ${escapeHtml(fmtDate(b.date))} at ${escapeHtml(b.time)}<br>with ${escapeHtml(b.therapist)}.</p>
+       <p style="margin-top:10px">A confirmation is on its way to <strong>${escapeHtml(b.email)}</strong>.</p>
+       <a class="btn btn-primary wa" href="${escapeHtml(data.whatsapp)}" target="_blank" rel="noopener">Confirm on WhatsApp</a>`
     );
     $("#bookingForm").reset();
     $("#bkDate").value = "";
     selectedDate = ""; selectedTime = "";
+    msg.className = "form-msg ok";
+    msg.textContent = "Booking confirmed — see the confirmation popup.";
     renderCalendar();
     loadBookedSlots();
   } catch (err) {
-    msg.className = "form-msg err";
-    msg.textContent = err.message;
+    fail(err.message);
+    loadBookedSlots();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = btn.dataset.label || "Confirm booking";
   }
 });
 
 /* ---------- Modal ---------- */
+let lastFocused = null;
+
 function openModal(html) {
+  lastFocused = document.activeElement;
   $("#modalBody").innerHTML = html;
   $("#modal").classList.remove("closing");
   $("#modal").hidden = false;
   document.body.style.overflow = "hidden";
+  $("#modalClose").focus();
+  $$("#modalBody [data-close-modal]").forEach((el) =>
+    el.addEventListener("click", closeModal));
 }
-$("#modalClose").addEventListener("click", closeModal);
-$("#modal").addEventListener("click", (e) => { if (e.target === $("#modal")) closeModal(); });
+
 function closeModal() {
   if ($("#modal").hidden) return;
   const modal = $("#modal");
@@ -324,18 +411,47 @@ function closeModal() {
   window.setTimeout(() => {
     modal.hidden = true;
     modal.classList.remove("closing");
-    document.body.style.overflow = "";
+    document.body.style.overflow = document.body.classList.contains("nav-open") ? "hidden" : "";
+    if (lastFocused && lastFocused.focus) lastFocused.focus();
+    lastFocused = null;
   }, 200);
 }
 
+$("#modalClose").addEventListener("click", closeModal);
+$("#modal").addEventListener("click", (e) => { if (e.target === $("#modal")) closeModal(); });
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    if (!$("#modal").hidden) { closeModal(); return; }
+    if ($("#nav").classList.contains("open")) setNav(false);
+  }
+  if (e.key === "Tab" && !$("#modal").hidden) {
+    const focusables = [...$("#modal").querySelectorAll("button, a[href], [tabindex]:not([tabindex='-1'])")]
+      .filter((el) => el.offsetParent !== null && !el.disabled);
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+});
+
 /* ---------- Animations ---------- */
 function initAnimations() {
+  if (!hasGsap) {
+    $$(".stat-num").forEach((el) => {
+      el.textContent = (+el.dataset.count).toLocaleString() + (el.dataset.suffix || "");
+    });
+    return;
+  }
   gsap.registerPlugin(ScrollTrigger);
 
   gsap.from(".hero-content > *", { opacity: 0, y: 30, duration: 0.9, stagger: 0.12, ease: "power3.out", delay: 0.2 });
 
   $$(".section").forEach((sec) => {
-    gsap.fromTo(sec.querySelectorAll(".card, .method, .step, .g-item, .char-card, .stat"),
+    const targets = sec.querySelectorAll(".card, .method, .step, .g-item, .char-card, .stat");
+    if (!targets.length) return;
+    gsap.fromTo(targets,
       { opacity: 0, y: 26 }, {
         opacity: 1, y: 0, duration: 0.7, ease: "power2.out", stagger: 0.07,
         scrollTrigger: { trigger: sec, start: "top 82%" },
@@ -344,7 +460,6 @@ function initAnimations() {
 
   gsap.from(".char-panel", { opacity: 0, y: 30, duration: 0.8, ease: "power2.out", scrollTrigger: { trigger: "#charPanel", start: "top 85%" } });
 
-  /* stats counters */
   $$(".stat-num").forEach((el) => {
     const end = +el.dataset.count;
     const suffix = el.dataset.suffix || "";
@@ -354,9 +469,10 @@ function initAnimations() {
         gsap.fromTo(el, { innerText: 0 }, {
           innerText: end, duration: 1.6, ease: "power1.out", snap: { innerText: 1 },
           onUpdate: function () {
-            const val = Math.round(el.textContent);
+            const val = Math.round(parseFloat(el.textContent) || 0);
             el.textContent = val.toLocaleString() + suffix;
           },
+          onComplete: () => { el.textContent = end.toLocaleString() + suffix; },
         });
       },
     });
@@ -364,14 +480,44 @@ function initAnimations() {
 }
 
 /* ---------- Nav ---------- */
-$("#navToggle").addEventListener("click", () => $("#nav").classList.toggle("open"));
-$$("#navLinks a").forEach((a) => a.addEventListener("click", () => $("#nav").classList.remove("open")));
-window.addEventListener("scroll", () => $("#nav").classList.toggle("scrolled", window.scrollY > 40));
+function setNav(open) {
+  $("#nav").classList.toggle("open", open);
+  $("#navToggle").setAttribute("aria-expanded", String(open));
+  document.body.classList.toggle("nav-open", open);
+}
+
+$("#navToggle").addEventListener("click", () => setNav(!$("#nav").classList.contains("open")));
+$$("#navLinks a").forEach((a) => a.addEventListener("click", () => setNav(false)));
+window.addEventListener("scroll", () => $("#nav").classList.toggle("scrolled", window.scrollY > 40), { passive: true });
+window.addEventListener("resize", () => { if (window.innerWidth > 860) setNav(false); });
+
+/* active section highlight */
+const sectionIds = ["team", "therapists", "services", "methods", "journey", "gallery", "testimonials", "booking"];
+if ("IntersectionObserver" in window) {
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((en) => {
+      if (!en.isIntersecting) return;
+      $$("#navLinks a").forEach((a) =>
+        a.classList.toggle("active", a.getAttribute("href") === "#" + en.target.id));
+    });
+  }, { rootMargin: "-40% 0px -55% 0px" });
+  sectionIds.forEach((id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+}
+
+/* pause carousel on hover/focus */
+const carousel = $("#tCarousel");
+if (carousel) {
+  carousel.addEventListener("mouseenter", stopAuto);
+  carousel.addEventListener("mouseleave", startAuto);
+  carousel.addEventListener("focusin", stopAuto);
+  carousel.addEventListener("focusout", startAuto);
+}
+document.addEventListener("visibilitychange", () => { document.hidden ? stopAuto() : startAuto(); });
 
 /* ---------- Init ---------- */
 $("#year").textContent = new Date().getFullYear();
-$("#bkService").innerHTML = `<option value="">Select a treatment…</option>` + SERVICES.map((s) => `<option value="${s.name}">${s.name}</option>`).join("");
-$("#bkTherapist").innerHTML = `<option value="">First available</option>` + THERAPISTS.map((t) => `<option value="${t.name}">${t.name}</option>`).join("");
+$("#bkService").innerHTML = `<option value="">Select a treatment…</option>` + SERVICES.map((s) => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join("");
+$("#bkTherapist").innerHTML = `<option value="">First available</option>` + THERAPISTS.map((t) => `<option value="${escapeHtml(t.name)}">${escapeHtml(t.name)}</option>`).join("");
 
 renderTherapists();
 renderServices();
@@ -379,5 +525,6 @@ renderMethods();
 renderGallery();
 renderTestimonials();
 renderCalendar();
+renderSlots();
 loadBookedSlots();
 initAnimations();
