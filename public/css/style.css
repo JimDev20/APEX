@@ -213,9 +213,10 @@ section[id] { scroll-margin-top: 84px; }
 .cp-avatar {
   width: 96px; height: 96px; border-radius: 50%; flex-shrink: 0;
   background: linear-gradient(135deg, var(--accent), #0f3d22);
-  display: grid; place-items: center; font-family: var(--font-display); font-weight: 700; font-size: 1.8rem;
-  color: #06230f; box-shadow: 0 0 30px rgba(61,220,132,0.3);
+  display: grid; place-items: center; overflow: hidden;
+  box-shadow: 0 0 30px rgba(61,220,132,0.3);
 }
+.cp-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .cp-body h3 { font-family: var(--font-display); font-size: 1.5rem; }
 .cp-role { color: var(--accent); font-size: 0.82rem; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px; }
 .cp-bio { color: var(--muted); margin-bottom: 14px; font-size: 0.95rem; }

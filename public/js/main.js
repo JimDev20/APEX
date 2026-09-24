@@ -34,6 +34,7 @@ const TESTIMONIALS = [
 const THERAPISTS = [
   {
     name: "Ryan Cole", role: "Founder · 10 yrs", short: "RC",
+    photo: "/images/portrait-1.jpg",
     bio: "Clinical specialist in lower-limb rehab and return-to-sport. Ryan leads on ACL, Achilles and full rehab programming.",
     mob: 92, train: 95, exp: 98,
     sig: ["Lower-limb rehab", "ACL return-to-sport", "Shockwave"],
@@ -41,6 +42,7 @@ const THERAPISTS = [
   },
   {
     name: "Sophie Chen", role: "Physiotherapist · 6 yrs", short: "SC",
+    photo: "/images/portrait-2.jpg",
     bio: "Upper-body and postural specialist. Sophie's sweet spot is shoulders, spines and the desk-bound athlete.",
     mob: 96, train: 84, exp: 88,
     sig: ["Shoulder & spine", "Posture correction", "Manual therapy"],
@@ -48,6 +50,7 @@ const THERAPISTS = [
   },
   {
     name: "Alex Turner", role: "Sports Physio · 7 yrs", short: "AT",
+    photo: "/images/portrait-3.jpg",
     bio: "Former academy S&C coach turned physio. Alex bridges strength work and rehab for field and court athletes.",
     mob: 80, train: 97, exp: 90,
     sig: ["Strength & conditioning", "Sports massage", "Plyometrics"],
@@ -103,7 +106,7 @@ function renderTherapists() {
     const [a, b] = avatarColors(t);
     return `
     <button type="button" class="char-card ${i === 0 ? "active" : "inactive"}" data-i="${i}" aria-label="Select ${escapeHtml(t.name)}">
-      <img src="${svgAvatar(t.short, a, b)}" alt="${escapeHtml(t.name)}" />
+      <img src="${t.photo || svgAvatar(t.short, a, b)}" alt="${escapeHtml(t.name)}" />
       <span class="cc-name">${escapeHtml(t.name)}</span>
     </button>`;
   }).join("");
@@ -118,7 +121,7 @@ function selectTherapist(i, instant = false) {
     c.classList.toggle("inactive", idx !== i);
   });
   $("#stageLabel").textContent = String(i + 1).padStart(2, "0") + " / " + String(THERAPISTS.length).padStart(2, "0");
-  $("#cpAvatar").textContent = t.short;
+  $("#cpAvatar").innerHTML = `<img src="${t.photo || svgAvatar(t.short, ...avatarColors(t))}" alt="${escapeHtml(t.name)}" />`;
   $("#cpAvatar").style.background = t.color;
   $("#cpName").textContent = t.name;
   $("#cpRole").textContent = t.role;
