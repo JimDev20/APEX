@@ -2,12 +2,12 @@
 "use strict";
 
 const SERVICES = [
-  { id: "physio", icon: "🫁", name: "Physiotherapy", desc: "Hands-on assessment and treatment for pain, injury and restriction.", meta: "45–60 min" },
-  { id: "return-to-sport", icon: "🏃", name: "Return to Sport", desc: "Structured, load-progressive rehab built to get you back to play — safely.", meta: "60 min" },
-  { id: "personal-training", icon: "🏋️", name: "Personal Training", desc: "Individualised strength and conditioning, guided by your clinical baseline.", meta: "60 min" },
-  { id: "shockwave", icon: "⚡", name: "Shockwave Therapy", desc: "Focused extracorporeal shockwave for stubborn tendon and soft-tissue pain.", meta: "30 min" },
-  { id: "sports-massage", icon: "💆", name: "Sports Massage", desc: "Deep-tissue treatment for tight, overworked muscles and faster recovery.", meta: "45 min" },
-  { id: "mobility", icon: "🧘", name: "Mobility & Prevention", desc: "Build the range and resilience to stay ahead of injury, long term.", meta: "60 min" },
+  { id: "physio", icon: "🫁", name: "Physiotherapy", desc: "Hands-on assessment and treatment for pain, injury and restriction.", meta: "45–60 min", dur: 60 },
+  { id: "return-to-sport", icon: "🏃", name: "Return to Sport", desc: "Structured, load-progressive rehab built to get you back to play — safely.", meta: "60 min", dur: 60 },
+  { id: "personal-training", icon: "🏋️", name: "Personal Training", desc: "Individualised strength and conditioning, guided by your clinical baseline.", meta: "60 min", dur: 60 },
+  { id: "shockwave", icon: "⚡", name: "Shockwave Therapy", desc: "Focused extracorporeal shockwave for stubborn tendon and soft-tissue pain.", meta: "30 min", dur: 30 },
+  { id: "sports-massage", icon: "💆", name: "Sports Massage", desc: "Deep-tissue treatment for tight, overworked muscles and faster recovery.", meta: "45 min", dur: 45 },
+  { id: "mobility", icon: "🧘", name: "Mobility & Prevention", desc: "Build the range and resilience to stay ahead of injury, long term.", meta: "60 min", dur: 60 },
 ];
 
 const METHODS = [
@@ -323,6 +323,87 @@ $("#calPrev").addEventListener("click", () => { calMonth = new Date(calMonth.get
 $("#calNext").addEventListener("click", () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderCalendar(); });
 $("#bkTherapist").addEventListener("change", () => { selectedTime = ""; renderSlots(); });
 
+/* ---------- Calendar invite (.ics) ---------- */
+const CLINIC_LOCATION = "APEX Physiotherapy, London";
+
+function serviceMinutes(name) {
+  const s = SERVICES.find((x) => x.name === name);
+  return (s && s.dur) || 60;
+}
+
+function slotStart(iso, time) {
+  const [h, m] = time.split(":").map(Number);
+  const d = new Date(iso + "T00:00:00");
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
+function icsStamp(d) {
+  return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
+function icsEscape(s) {
+  return String(s ?? "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+}
+
+function bookingICS(b) {
+  const start = slotStart(b.date, b.time);
+  const end = new Date(start.getTime() + serviceMinutes(b.service) * 60000);
+  const desc = [
+    `${b.service} with ${b.therapist} at APEX Physiotherapy.`,
+    b.phone ? `Phone: ${b.phone}` : "",
+    b.notes ? `Notes: ${b.notes}` : "",
+  ].filter(Boolean).join("\n");
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//APEX Physiotherapy//Booking//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:${b.id}@apex-physio`,
+    `DTSTAMP:${icsStamp(new Date())}`,
+    `DTSTART:${icsStamp(start)}`,
+    `DTEND:${icsStamp(end)}`,
+    `SUMMARY:${icsEscape(b.service + " — APEX Physiotherapy")}`,
+    `DESCRIPTION:${icsEscape(desc)}`,
+    `LOCATION:${icsEscape(CLINIC_LOCATION)}`,
+    "STATUS:CONFIRMED",
+    "BEGIN:VALARM",
+    "TRIGGER:-PT1H",
+    "ACTION:DISPLAY",
+    `DESCRIPTION:${icsEscape("Your APEX session starts in 1 hour")}`,
+    "END:VALARM",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n") + "\r\n";
+}
+
+function downloadICS(b) {
+  const blob = new Blob([bookingICS(b)], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `apex-${b.date}-${b.time.replace(":", "")}.ics`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function googleCalUrl(b) {
+  const start = slotStart(b.date, b.time);
+  const end = new Date(start.getTime() + serviceMinutes(b.service) * 60000);
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: `${b.service} — APEX Physiotherapy`,
+    dates: `${icsStamp(start)}/${icsStamp(end)}`,
+    details: [`Session with ${b.therapist}.`, b.notes ? `Notes: ${b.notes}` : ""].filter(Boolean).join("\n"),
+    location: CLINIC_LOCATION,
+  });
+  return "https://calendar.google.com/calendar/render?" + params.toString();
+}
+
 async function loadBookedSlots() {
   try {
     const res = await fetch("/api/bookings");
@@ -375,8 +456,13 @@ $("#bookingForm").addEventListener("submit", async (e) => {
       `<h3>You're booked, ${escapeHtml(String(b.name).split(" ")[0] || "there")}. 🎉</h3>
        <p>${escapeHtml(b.service)} · ${escapeHtml(fmtDate(b.date))} at ${escapeHtml(b.time)}<br>with ${escapeHtml(b.therapist)}.</p>
        <p style="margin-top:10px">A confirmation is on its way to <strong>${escapeHtml(b.email)}</strong>.</p>
-       <a class="btn btn-primary wa" href="${escapeHtml(data.whatsapp)}" target="_blank" rel="noopener">Confirm on WhatsApp</a>`
+       <div class="modal-actions">
+         <a class="btn btn-primary" href="${escapeHtml(data.whatsapp)}" target="_blank" rel="noopener">Confirm on WhatsApp</a>
+         <button type="button" class="btn btn-ghost" data-download-ics>Add to calendar</button>
+         <a class="btn btn-ghost" href="${escapeHtml(googleCalUrl(b))}" target="_blank" rel="noopener">Google Calendar</a>
+       </div>`
     );
+    $("#modalBody [data-download-ics]").addEventListener("click", () => downloadICS(b));
     $("#bookingForm").reset();
     $("#bkDate").value = "";
     selectedDate = ""; selectedTime = "";

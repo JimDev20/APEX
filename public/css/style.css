@@ -399,6 +399,8 @@ section[id] { scroll-margin-top: 84px; }
 .modal-body h3 { font-family: var(--font-display); margin-bottom: 10px; }
 .modal-body p { color: var(--muted); font-size: 0.95rem; }
 .modal-body .wa { display: inline-block; margin-top: 18px; }
+.modal-body .modal-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.modal-body .modal-actions .btn { font-family: inherit; cursor: pointer; padding: 12px 20px; font-size: 0.9rem; }
 
 /* ---------- RESPONSIVE ---------- */
 @media (prefers-reduced-motion: reduce) {
