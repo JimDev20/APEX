@@ -455,7 +455,11 @@ $("#bookingForm").addEventListener("submit", async (e) => {
     openModal(
       `<h3>You're booked, ${escapeHtml(String(b.name).split(" ")[0] || "there")}. 🎉</h3>
        <p>${escapeHtml(b.service)} · ${escapeHtml(fmtDate(b.date))} at ${escapeHtml(b.time)}<br>with ${escapeHtml(b.therapist)}.</p>
-       <p style="margin-top:10px">A confirmation is on its way to <strong>${escapeHtml(b.email)}</strong>.</p>
+       <p style="margin-top:10px">${
+         data.email === "sent"
+           ? `Confirmation email sent to <strong>${escapeHtml(b.email)}</strong>.`
+           : `Add <strong>${escapeHtml(b.email)}</strong> to your calendar below, or message us on WhatsApp to confirm.`
+       }</p>
        <div class="modal-actions">
          <a class="btn btn-primary" href="${escapeHtml(data.whatsapp)}" target="_blank" rel="noopener">Confirm on WhatsApp</a>
          <button type="button" class="btn btn-ghost" data-download-ics>Add to calendar</button>

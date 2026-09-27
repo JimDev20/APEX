@@ -51,6 +51,136 @@ app.use(express.static(path.join(__dirname, "public")));
 const ALL_SLOTS = new Set(SERVICE_TIMES.flatMap((s) => s.slots));
 const LEAD_MS = 30 * 60 * 1000;
 
+/* ---------- Confirmation email (Resend) ---------- */
+const RESEND_ENDPOINT = "https://api.resend.com/emails";
+const EMAIL_FROM = process.env.EMAIL_FROM || "APEX Physiotherapy <onboarding@resend.dev>";
+const CLINIC_EMAIL = process.env.CLINIC_EMAIL || "";
+const SITE_URL = (process.env.SITE_URL || "https://apex-physio.vercel.app").replace(/\/+$/, "");
+
+const SERVICE_MINUTES = {
+  "Physiotherapy": 60,
+  "Return to Sport": 60,
+  "Personal Training": 60,
+  "Shockwave Therapy": 30,
+  "Sports Massage": 45,
+  "Mobility & Prevention": 60,
+};
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function longDate(iso) {
+  const d = new Date(iso + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+function sessionEnd(b) {
+  const [h, m] = b.time.split(":").map(Number);
+  const start = new Date(b.date + "T00:00:00");
+  start.setHours(h, m, 0, 0);
+  return new Date(start.getTime() + (SERVICE_MINUTES[b.service] || 60) * 60000);
+}
+
+function hhmm(d) {
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+
+function whatsappLink(b) {
+  return `https://wa.me/?text=${encodeURIComponent(
+    `Hi APEX Physiotherapy, I'd like to confirm my booking: ${b.service} on ${b.date} at ${b.time} with ${b.therapist}. Name: ${b.name}.`
+  )}`;
+}
+
+function confirmationText(b) {
+  const end = sessionEnd(b);
+  return [
+    `Hi ${b.name},`,
+    "",
+    `You're booked in at APEX Physiotherapy. Here's the details:`,
+    "",
+    `  Treatment:  ${b.service}`,
+    `  When:       ${longDate(b.date)}, ${b.time}–${hhmm(end)}`,
+    `  Therapist:  ${b.therapist}`,
+    b.phone ? `  Phone:      ${b.phone}` : "",
+    b.notes ? `  Notes:      ${b.notes}` : "",
+    "",
+    `Reference: ${b.id}`,
+    "",
+    `Need to change something? Reply to this email or message us on WhatsApp:`,
+    whatsappLink(b),
+    "",
+    `See you soon,`,
+    `APEX Physiotherapy`,
+    SITE_URL,
+  ]
+    .filter((l) => l !== "")
+    .join("\n");
+}
+
+function confirmationHtml(b) {
+  const end = sessionEnd(b);
+  const row = (label, value) =>
+    `<tr><td style="padding:10px 0;border-bottom:1px solid #1f2a24;color:#8fa398;font-size:13px;vertical-align:top;white-space:nowrap">${label}</td>` +
+    `<td style="padding:10px 0;border-bottom:1px solid #1f2a24;color:#e8f0eb;font-size:15px">${value}</td></tr>`;
+  return `<!DOCTYPE html>
+<html><body style="margin:0;padding:24px;background:#f2f5f3;font-family:-apple-system,Segoe UI,Inter,Roboto,Helvetica,Arial,sans-serif">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#0b0e0c;border-radius:16px;overflow:hidden;border:1px solid #1f2a24">
+    <tr><td style="padding:28px 28px 8px">
+      <p style="margin:0;color:#3ddc84;font-size:12px;letter-spacing:2px;font-weight:700">APEX</p>
+      <h1 style="margin:8px 0 4px;color:#e8f0eb;font-size:22px;line-height:1.3">You're booked, ${esc(String(b.name).split(" ")[0] || "there")}.</h1>
+      <p style="margin:0;color:#8fa398;font-size:14px">Keep this email for your reference.</p>
+    </td></tr>
+    <tr><td style="padding:20px 28px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        ${row("Treatment", esc(b.service))}
+        ${row("Date", esc(longDate(b.date)))}
+        ${row("Time", esc(b.time + " – " + hhmm(end)))}
+        ${row("Therapist", esc(b.therapist))}
+        ${b.phone ? row("Phone", esc(b.phone)) : ""}
+        ${b.notes ? row("Notes", esc(b.notes)) : ""}
+        ${row("Reference", `<code style="color:#3ddc84">${esc(b.id)}</code>`)}
+      </table>
+    </td></tr>
+    <tr><td style="padding:8px 28px 28px">
+      <a href="${esc(whatsappLink(b))}" style="display:inline-block;background:#3ddc84;color:#06230f;font-weight:700;font-size:15px;text-decoration:none;padding:13px 22px;border-radius:10px">Confirm on WhatsApp</a>
+      <p style="margin:18px 0 0;color:#8fa398;font-size:13px;line-height:1.6">Need to change your time? Reply to this email or message us and we'll find you another slot.</p>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+async function sendBookingConfirmation(b) {
+  if (!process.env.RESEND_API_KEY) {
+    console.log(`[email] RESEND_API_KEY not set — confirmation for ${b.email} not sent (ref ${b.id}).`);
+    return { sent: false, reason: "not-configured" };
+  }
+  try {
+    const res = await fetch(RESEND_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: EMAIL_FROM,
+        to: [b.email],
+        subject: `You're booked — ${b.service} on ${longDate(b.date)} at ${b.time}`,
+        text: confirmationText(b),
+        html: confirmationHtml(b),
+        ...(CLINIC_EMAIL ? { reply_to: CLINIC_EMAIL } : {}),
+      }),
+    });
+    if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`);
+    const out = await res.json().catch(() => ({}));
+    return { sent: true, id: out.id || null };
+  } catch (err) {
+    console.warn(`[email] confirmation failed for ${b.email} (ref ${b.id}):`, err.message);
+    return { sent: false, reason: "send-failed" };
+  }
+}
+
 function therapistKey(t) {
   const v = String(t || "").trim();
   if (!v || v.toLowerCase() === "any" || v.toLowerCase() === "first available") return "any";
@@ -70,7 +200,7 @@ app.get("/api/bookings", (req, res) => {
   res.json({ bookings });
 });
 
-app.post("/api/bookings", (req, res) => {
+app.post("/api/bookings", async (req, res) => {
   const body = req.body || {};
   const name = String(body.name || "").trim();
   const email = String(body.email || "").trim();
@@ -131,11 +261,10 @@ app.post("/api/bookings", (req, res) => {
   data.bookings.push(booking);
   writeData(data);
 
-  const whatsapp = `https://wa.me/?text=${encodeURIComponent(
-    `Hi APEX Physiotherapy, I'd like to confirm my booking: ${service} on ${date} at ${time} with ${booking.therapist}. Name: ${name}.`
-  )}`;
+  const mailStatus = await sendBookingConfirmation(booking);
+  const whatsapp = whatsappLink(booking);
 
-  res.status(201).json({ booking, whatsapp });
+  res.status(201).json({ booking, whatsapp, email: mailStatus.sent ? "sent" : mailStatus.reason });
 });
 
 app.delete("/api/bookings/:id", (req, res) => {
