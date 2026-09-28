@@ -406,7 +406,7 @@ function googleCalUrl(b) {
 
 async function loadBookedSlots() {
   try {
-    const res = await fetch("/api/bookings");
+    const res = await fetch("/api/availability");
     const data = await res.json();
     allBookings = data.bookings || [];
     renderSlots();

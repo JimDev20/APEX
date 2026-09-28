@@ -2,6 +2,7 @@ import express from "express";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -45,7 +46,9 @@ function writeData(data) {
   }
 }
 
-app.use(express.json());
+app.use(express.json({ limit: "16kb" }));
+app.use(express.urlencoded({ extended: false, limit: "16kb" }));
+app.get("/admin.html", (_req, res) => res.redirect(302, "/admin"));
 app.use(express.static(path.join(__dirname, "public")));
 
 const ALL_SLOTS = new Set(SERVICE_TIMES.flatMap((s) => s.slots));
@@ -191,11 +194,162 @@ function slotConflicts(a, b) {
   return a === "any" || b === "any" || a === b;
 }
 
+/* ---------- Admin auth ---------- */
+const SESSION_COOKIE = "apex_admin";
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || crypto.randomBytes(12).toString("base64url");
+const ADMIN_PASSWORD_IS_EPHEMERAL = !process.env.ADMIN_PASSWORD;
+const SESSION_SECRET =
+  process.env.SESSION_SECRET || crypto.createHash("sha256").update(`apex:${ADMIN_PASSWORD}`).digest("hex");
+
+const LOGIN_MAX_ATTEMPTS = 8;
+const LOGIN_LOCK_MS = 10 * 60 * 1000;
+const loginAttempts = new Map();
+
+function clientIp(req) {
+  return String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.ip || "unknown";
+}
+
+function parseCookies(req) {
+  const jar = {};
+  for (const part of String(req.headers.cookie || "").split(";")) {
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    jar[part.slice(0, eq).trim()] = decodeURIComponent(part.slice(eq + 1).trim());
+  }
+  return jar;
+}
+
+function signSession(expires) {
+  const payload = Buffer.from(JSON.stringify({ exp: expires })).toString("base64url");
+  const sig = crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");
+  return `${payload}.${sig}`;
+}
+
+function validSession(token) {
+  if (typeof token !== "string") return false;
+  const dot = token.lastIndexOf(".");
+  if (dot < 1) return false;
+  const payload = token.slice(0, dot);
+  const given = Buffer.from(token.slice(dot + 1));
+  const expected = Buffer.from(crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url"));
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return false;
+  try {
+    return Date.now() < JSON.parse(Buffer.from(payload, "base64url").toString("utf8")).exp;
+  } catch {
+    return false;
+  }
+}
+
+function isAdmin(req) {
+  return validSession(parseCookies(req)[SESSION_COOKIE]);
+}
+
+function issueSession(req, res) {
+  const secure = req.secure || req.headers["x-forwarded-proto"] === "https";
+  res.append(
+    "Set-Cookie",
+    `${SESSION_COOKIE}=${signSession(Date.now() + SESSION_TTL_MS)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${Math.floor(
+      SESSION_TTL_MS / 1000
+    )}${secure ? "; Secure" : ""}`
+  );
+}
+
+function expireSession(res) {
+  res.append("Set-Cookie", `${SESSION_COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`);
+}
+
+function requireAdmin(req, res, next) {
+  if (isAdmin(req)) return next();
+  res.status(401).json({ error: "Admin sign-in required." });
+}
+
+function passwordMatches(candidate) {
+  const given = crypto.createHash("sha256").update(String(candidate ?? "")).digest();
+  const expected = crypto.createHash("sha256").update(ADMIN_PASSWORD).digest();
+  return crypto.timingSafeEqual(given, expected);
+}
+
+function loginLocked(ip) {
+  const rec = loginAttempts.get(ip);
+  return !!rec && rec.until > Date.now();
+}
+
+function recordLoginFailure(ip) {
+  const now = Date.now();
+  const prev = loginAttempts.get(ip);
+  const rec = prev && now - prev.firstAt < LOGIN_LOCK_MS ? prev : { count: 0, firstAt: now };
+  rec.count += 1;
+  if (rec.count >= LOGIN_MAX_ATTEMPTS) rec.until = now + LOGIN_LOCK_MS;
+  if (loginAttempts.size > 5000) loginAttempts.clear();
+  loginAttempts.set(ip, rec);
+}
+
+function loginPage(error) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APEX — Admin sign in</title>
+  <meta name="theme-color" content="#0b0e0c" />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0e0c'/%3E%3Ctext x='32' y='44' font-family='sans-serif' font-size='34' font-weight='700' fill='%233ddc84' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    body { display: grid; place-items: center; min-height: 100vh; padding: 24px; }
+    .login-card {
+      width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--line);
+      border-radius: 18px; padding: 34px 30px;
+    }
+    .login-card h1 { font-size: 1.5rem; margin: 6px 0 4px; }
+    .login-card p.sub { color: var(--muted); font-size: 0.92rem; margin: 0 0 24px; }
+    .login-card label { display: block; font-size: 0.8rem; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+    .login-card input[type=password] {
+      width: 100%; background: var(--bg-soft); border: 1px solid var(--line); color: var(--text);
+      border-radius: 10px; padding: 12px 14px; font-family: inherit; font-size: 1rem;
+    }
+    .login-card button {
+      width: 100%; margin-top: 18px; background: var(--accent); color: #06230f; font-weight: 600;
+      border: 0; border-radius: 10px; padding: 13px; font-size: 1rem; font-family: inherit; cursor: pointer;
+    }
+    .login-err {
+      background: rgba(255,122,122,0.12); border: 1px solid rgba(255,122,122,0.4); color: #ff9a9a;
+      border-radius: 10px; padding: 10px 14px; font-size: 0.88rem; margin: 0 0 18px;
+    }
+    .back { display: inline-block; margin-top: 20px; color: var(--muted); font-size: 0.88rem; }
+  </style>
+</head>
+<body>
+  <main class="login-card">
+    <p class="eyebrow" style="text-align:left">APEX</p>
+    <h1>Admin sign in</h1>
+    <p class="sub">Bookings dashboard — staff only.</p>
+    ${error ? `<p class="login-err">${esc(error)}</p>` : ""}
+    <form method="post" action="/admin/login">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required autofocus />
+      <button type="submit">Sign in</button>
+    </form>
+    <a class="back" href="/">&larr; Back to site</a>
+  </main>
+</body>
+</html>`;
+}
+
 app.get("/api/slots", (req, res) => {
   res.json(SERVICE_TIMES);
 });
 
-app.get("/api/bookings", (req, res) => {
+/* public slot availability only — no customer data */
+app.get("/api/availability", (_req, res) => {
+  const { bookings } = readData();
+  res.json({ bookings: bookings.map((b) => ({ date: b.date, time: b.time, therapist: b.therapist })) });
+});
+
+app.get("/api/bookings", requireAdmin, (req, res) => {
   const { bookings } = readData();
   res.json({ bookings });
 });
@@ -267,7 +421,7 @@ app.post("/api/bookings", async (req, res) => {
   res.status(201).json({ booking, whatsapp, email: mailStatus.sent ? "sent" : mailStatus.reason });
 });
 
-app.delete("/api/bookings/:id", (req, res) => {
+app.delete("/api/bookings/:id", requireAdmin, (req, res) => {
   const data = readData();
   const before = data.bookings.length;
   data.bookings = data.bookings.filter((b) => b.id !== req.params.id);
@@ -278,7 +432,27 @@ app.delete("/api/bookings/:id", (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/admin", (_req, res) => {
+app.post("/admin/login", (req, res) => {
+  const ip = clientIp(req);
+  if (loginLocked(ip)) {
+    return res.status(429).send(loginPage("Too many attempts. Try again in a few minutes."));
+  }
+  if (!passwordMatches((req.body || {}).password)) {
+    recordLoginFailure(ip);
+    return res.status(401).send(loginPage("That password isn't right."));
+  }
+  loginAttempts.delete(ip);
+  issueSession(req, res);
+  res.redirect(303, "/admin");
+});
+
+app.post("/api/admin/logout", requireAdmin, (_req, res) => {
+  expireSession(res);
+  res.json({ ok: true });
+});
+
+app.get("/admin", (req, res) => {
+  if (!isAdmin(req)) return res.send(loginPage(null));
   res.sendFile(path.join(__dirname, "public", "admin.html"));
 });
 
@@ -287,7 +461,10 @@ const isMain =
 if (isMain) {
   app.listen(PORT, () => {
     console.log(`APEX Physiotherapy running at http://localhost:${PORT}`);
-    console.log(`Booking API: http://localhost:${PORT}/api/bookings`);
+    console.log(`Admin dashboard: http://localhost:${PORT}/admin`);
+    if (ADMIN_PASSWORD_IS_EPHEMERAL) {
+      console.log(`[admin] ADMIN_PASSWORD not set — generated for this process: ${ADMIN_PASSWORD}`);
+    }
   });
 }
 

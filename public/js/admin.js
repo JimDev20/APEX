@@ -12,6 +12,7 @@ function escapeHtml(s) {
 async function load() {
   try {
     const res = await fetch("/api/bookings");
+    if (res.status === 401) { location.replace("/admin"); return; }
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     all = (data.bookings || []).slice()
@@ -71,6 +72,7 @@ function render() {
       btn.textContent = "Cancelling…";
       try {
         const res = await fetch("/api/bookings/" + encodeURIComponent(btn.dataset.id), { method: "DELETE" });
+        if (res.status === 401) { location.replace("/admin"); return; }
         if (!res.ok) throw new Error("HTTP " + res.status);
         await load();
       } catch {
@@ -84,5 +86,11 @@ function render() {
 
 $("#fSearch").addEventListener("input", render);
 $("#fService").addEventListener("change", render);
+$("#btnLogout").addEventListener("click", async () => {
+  try {
+    await fetch("/api/admin/logout", { method: "POST" });
+  } catch { /* session already gone */ }
+  location.replace("/admin");
+});
 
 load();

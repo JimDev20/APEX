@@ -31,6 +31,7 @@
     .empty { text-align: center; color: var(--muted); padding: 60px 0; }
     .count-badge { background: var(--accent-dim); color: var(--accent); border-radius: 999px; padding: 4px 12px; font-size: 0.85rem; font-weight: 600; }
     .btn-danger:disabled { opacity: 0.5; cursor: wait; }
+    #btnLogout { font-family: inherit; cursor: pointer; font-size: 0.82rem; padding: 7px 14px; }
     @media (max-width: 860px) {
       .nav-links { position: static; transform: none; flex-direction: row; padding: 0; background: none; border: 0; gap: 18px; }
       .nav-links .nav-cta { padding: 7px 14px; }
@@ -47,6 +48,7 @@
     <ul class="nav-links">
       <li><a href="/">Back to site</a></li>
       <li><a href="/api/bookings" target="_blank" rel="noopener">API JSON</a></li>
+      <li><button class="btn-ghost btn-sm" id="btnLogout" type="button">Sign out</button></li>
     </ul>
   </nav>
 
