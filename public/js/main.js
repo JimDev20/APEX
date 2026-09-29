@@ -58,6 +58,16 @@ const THERAPISTS = [
   },
 ];
 
+const FAQS = [
+  { q: "Do I need a GP referral?", a: "No. You can book directly and come straight to your assessment. If your insurer asks for a referral we'll write one for you on request." },
+  { q: "How long does a session last?", a: "Between 30 and 60 minutes depending on the treatment. Shockwave is 30 minutes; physiotherapy, return-to-sport, personal training and mobility are 45–60." },
+  { q: "Can I book a same-day appointment?", a: "Often, yes. We hold back slots for urgent bookings and you can book up to 30 minutes before a session starts." },
+  { q: "What should I wear and bring?", a: "Wear something you can move in — shorts or leggings are ideal for lower-limb work. Bring any scan reports, referral letters or a list of the exercises you've already tried." },
+  { q: "What if I need to cancel?", a: "Cancel or move your appointment free of charge up to 24 hours before. Inside 24 hours we ask for the session fee, because that slot is gone for good." },
+  { q: "Do you treat sports injuries?", a: "That's most of what we do — ACL and Achilles rehab, return-to-sport testing, shoulder and hamstring strains, and the niggles that never quite settle." },
+  { q: "Is shockwave worth trying?", a: "If you've been chasing a tendon problem with exercise alone for months, it's the treatment that most often breaks the cycle. Your therapist will tell you honestly if it's not the right call." },
+];
+
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 
@@ -229,6 +239,30 @@ function startAuto() {
 }
 function stopAuto() { if (tTimer) { clearInterval(tTimer); tTimer = null; } }
 function restartAuto() { stopAuto(); startAuto(); }
+
+/* ---------- FAQ ---------- */
+function renderFaqs() {
+  $("#faqList").innerHTML = FAQS.map((f, i) => `
+    <div class="faq-item">
+      <h3 class="faq-heading">
+        <button type="button" class="faq-q" id="faqQ${i}" aria-expanded="false" aria-controls="faqA${i}">
+          <span>${escapeHtml(f.q)}</span>
+          <i class="faq-icon" aria-hidden="true"></i>
+        </button>
+      </h3>
+      <div class="faq-a" id="faqA${i}" role="region" aria-labelledby="faqQ${i}">
+        <div><p>${escapeHtml(f.a)}</p></div>
+      </div>
+    </div>`).join("");
+  $$("#faqList .faq-q").forEach((btn) => btn.addEventListener("click", () => toggleFaq(btn)));
+}
+
+function toggleFaq(btn) {
+  const item = btn.closest(".faq-item");
+  const open = !item.classList.contains("open");
+  item.classList.toggle("open", open);
+  btn.setAttribute("aria-expanded", String(open));
+}
 
 /* ---------- Booking calendar ---------- */
 const now = new Date();
@@ -542,7 +576,7 @@ function initAnimations() {
   gsap.from(".hero-content > *", { opacity: 0, y: 30, duration: 0.9, stagger: 0.12, ease: "power3.out", delay: 0.2 });
 
   $$(".section").forEach((sec) => {
-    const targets = sec.querySelectorAll(".card, .method, .step, .g-item, .char-card, .stat");
+    const targets = sec.querySelectorAll(".card, .method, .step, .g-item, .char-card, .stat, .faq-item");
     if (!targets.length) return;
     gsap.fromTo(targets,
       { opacity: 0, y: 26 }, {
@@ -585,7 +619,7 @@ window.addEventListener("scroll", () => $("#nav").classList.toggle("scrolled", w
 window.addEventListener("resize", () => { if (window.innerWidth > 860) setNav(false); });
 
 /* active section highlight */
-const sectionIds = ["team", "therapists", "services", "methods", "journey", "gallery", "testimonials", "booking"];
+const sectionIds = ["team", "therapists", "services", "methods", "journey", "gallery", "testimonials", "faq", "booking"];
 if ("IntersectionObserver" in window) {
   const io = new IntersectionObserver((entries) => {
     entries.forEach((en) => {
@@ -617,6 +651,7 @@ renderServices();
 renderMethods();
 renderGallery();
 renderTestimonials();
+renderFaqs();
 renderCalendar();
 renderSlots();
 loadBookedSlots();
