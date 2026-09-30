@@ -10,6 +10,21 @@ const SERVICES = [
   { id: "mobility", icon: "🧘", name: "Mobility & Prevention", desc: "Build the range and resilience to stay ahead of injury, long term.", meta: "60 min", dur: 60 },
 ];
 
+const PRICES = {
+  physio: { single: 95, five: 425, ten: 790, note: "Hands-on treatment plus a written plan you keep." },
+  "return-to-sport": { single: 110, five: 495, ten: 890, popular: true, note: "Includes objective return-to-sport testing at the end." },
+  "personal-training": { single: 90, five: 405, ten: 720, note: "Programming built from your clinical baseline, not guesswork." },
+  shockwave: { single: 70, five: 315, ten: 560, note: "Most insurers cover this — we handle the paperwork." },
+  "sports-massage": { single: 75, five: 340, ten: 600, note: "Add it to a session for £40 if you're already in." },
+  mobility: { single: 90, five: 405, ten: 720, note: "Class-based options included in the membership." },
+};
+
+const PRICE_MODES = {
+  single: { pack: 1, label: "single session" },
+  five: { pack: 5, label: "5-session package" },
+  ten: { pack: 10, label: "10-session package" },
+};
+
 const METHODS = [
   { num: "01", name: "Manual Therapy", desc: "Precise hands-on mobilisation and soft-tissue work to unlock movement from the inside out." },
   { num: "02", name: "Functional Training", desc: "Rehab that looks and feels like your life — not a clinic — so progress actually transfers." },
@@ -239,6 +254,98 @@ function renderMethods() {
       <h3>${escapeHtml(m.name)}</h3>
       <p>${escapeHtml(m.desc)}</p>
     </div>`).join("");
+}
+
+/* ---------- Pricing ---------- */
+let priceMode = "single";
+
+function packTotal(p) {
+  return priceMode === "single" ? p.single : priceMode === "five" ? p.five : p.ten;
+}
+
+function setPriceNumber(el, value) {
+  const from = Number(String(el.textContent).replace(/[^\d]/g, "")) || 0;
+  if (from === value || !hasGsap || reduceMotion) {
+    el.textContent = value.toLocaleString();
+    return;
+  }
+  gsap.fromTo(el, { innerText: from }, {
+    innerText: value, duration: 0.5, ease: "power2.out", snap: { innerText: 1 },
+    onUpdate: function () {
+      el.textContent = (Math.round(parseFloat(el.textContent) || 0)).toLocaleString();
+    },
+    onComplete: function () { el.textContent = value.toLocaleString(); },
+  });
+}
+
+function renderPrices() {
+  const { pack, label } = PRICE_MODES[priceMode];
+  $$("#priceGrid .price-card").forEach((card) => {
+    const svc = SERVICES.find((x) => x.id === card.dataset.svc);
+    if (!svc) return;
+    const p = PRICES[svc.id];
+    const total = packTotal(p);
+    const per = Math.round(total / pack);
+    card.classList.toggle("pack", pack > 1);
+    card.querySelector(".pc-save").textContent = "Save £" + (p.single * pack - total);
+    setPriceNumber(card.querySelector(".pc-num"), total);
+    card.querySelector(".pc-per").textContent = pack > 1 ? `£${per} a session · ${pack} sessions` : "per session";
+  });
+  $("#priceStatus").textContent = "Showing " + label + " prices.";
+}
+
+function movePricePill() {
+  const btn = $("#priceToggle .pt-btn.on");
+  const pill = $("#ptSlider");
+  if (!btn || !pill) return;
+  pill.style.width = btn.offsetWidth + "px";
+  pill.style.transform = `translateX(${btn.offsetLeft}px)`;
+}
+
+function setPriceMode(mode) {
+  if (!PRICE_MODES[mode]) return;
+  priceMode = mode;
+  $$("#priceToggle .pt-btn").forEach((b) => {
+    const on = b.dataset.mode === mode;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", String(on));
+  });
+  movePricePill();
+  renderPrices();
+}
+
+function renderPricing() {
+  $("#priceGrid").innerHTML = SERVICES.map((s) => {
+    const p = PRICES[s.id];
+    return `
+    <article class="price-card${p.popular ? " popular" : ""}" data-svc="${escapeHtml(s.id)}">
+      ${p.popular ? '<span class="pc-badge">Most booked</span>' : ""}
+      <div class="pc-top">
+        <h3>${escapeHtml(s.name)}</h3>
+        <span class="pc-dur">${escapeHtml(s.meta)}</span>
+      </div>
+      <p class="pc-price"><span class="pc-cur">&pound;</span><span class="pc-num">${p.single}</span></p>
+      <p class="pc-per">per session</p>
+      <span class="pc-save"></span>
+      <p class="pc-note">${escapeHtml(p.note)}</p>
+      <button type="button" class="btn btn-ghost pc-book" data-svc="${escapeHtml(s.id)}">Book this treatment</button>
+    </article>`;
+  }).join("");
+
+  $$("#priceToggle .pt-btn").forEach((b) => b.addEventListener("click", () => setPriceMode(b.dataset.mode)));
+  $$("#priceGrid .pc-book").forEach((btn) => btn.addEventListener("click", () => {
+    const svc = SERVICES.find((x) => x.id === btn.dataset.svc);
+    if (!svc) return;
+    $("#bkService").value = svc.name;
+    document.querySelector("#booking").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
+  }));
+  $("#joinMembership").addEventListener("click", () => {
+    $("#bkNotes").value = "I'd like to join the Recovery membership";
+    document.querySelector("#booking").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
+  });
+
+  setPriceMode("single");
+  window.addEventListener("resize", movePricePill);
 }
 
 function renderGallery() {
@@ -702,7 +809,7 @@ function initAnimations() {
   gsap.from(".hero-content > *", { opacity: 0, y: 30, duration: 0.9, stagger: 0.12, ease: "power3.out", delay: 0.2 });
 
   $$(".section").forEach((sec) => {
-    const targets = sec.querySelectorAll(".card, .method, .step, .g-item, .char-card, .stat, .faq-item, .c-card");
+    const targets = sec.querySelectorAll(".card, .method, .step, .g-item, .char-card, .stat, .faq-item, .c-card, .price-card");
     if (!targets.length) return;
     gsap.fromTo(targets,
       { opacity: 0, y: 26 }, {
@@ -745,7 +852,7 @@ window.addEventListener("scroll", () => $("#nav").classList.toggle("scrolled", w
 window.addEventListener("resize", () => { if (window.innerWidth > 860) setNav(false); });
 
 /* active section highlight */
-const sectionIds = ["team", "therapists", "services", "methods", "journey", "gallery", "testimonials", "faq", "contact", "booking"];
+const sectionIds = ["team", "therapists", "services", "methods", "pricing", "journey", "gallery", "testimonials", "faq", "contact", "booking"];
 if ("IntersectionObserver" in window) {
   const io = new IntersectionObserver((entries) => {
     entries.forEach((en) => {
@@ -775,6 +882,7 @@ $("#bkTherapist").innerHTML = `<option value="">First available</option>` + THER
 renderTherapists();
 renderServices();
 renderMethods();
+renderPricing();
 renderGallery();
 renderTestimonials();
 renderFaqs();
