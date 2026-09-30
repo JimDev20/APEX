@@ -342,6 +342,64 @@ section[id] { scroll-margin-top: 84px; }
 .faq-a p { color: var(--muted); font-size: 0.93rem; padding: 0 22px 22px; }
 .faq-item.open .faq-a { grid-template-rows: 1fr; visibility: visible; }
 
+/* ---------- CONTACT ---------- */
+.contact-wrap { display: grid; grid-template-columns: 1.45fr 1fr; gap: 18px; align-items: start; }
+.contact-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.c-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 20px; display: flex; gap: 14px; align-items: flex-start; position: relative;
+  transition: border-color 0.25s, transform 0.25s, background 0.25s;
+}
+.c-card:hover { border-color: var(--accent); transform: translateY(-3px); background: var(--panel-2); }
+.c-icon {
+  flex: 0 0 auto; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+  background: var(--accent-dim); color: var(--accent);
+}
+.c-icon svg { width: 20px; height: 20px; }
+.c-label { display: block; font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+.c-value { font-family: var(--font-display); font-size: 0.98rem; line-height: 1.35; overflow-wrap: anywhere; }
+.c-action {
+  display: inline-block; margin-top: 9px; font-size: 0.8rem; color: var(--accent);
+  letter-spacing: 0.06em; border-bottom: 1px solid transparent; transition: border-color 0.2s;
+}
+.c-action:hover { border-color: var(--accent); }
+.c-copy {
+  position: absolute; top: 14px; right: 14px; background: none; border: 1px solid var(--line);
+  color: var(--muted); border-radius: 8px; font-size: 0.68rem; letter-spacing: 0.08em;
+  text-transform: uppercase; padding: 4px 9px;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.c-copy:hover { color: var(--accent); border-color: var(--accent); }
+.c-copy.done { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+
+.contact-panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; }
+.c-status {
+  display: inline-flex; align-items: center; gap: 9px; font-size: 0.85rem; font-weight: 600;
+  padding: 7px 15px; border-radius: 99px; margin-bottom: 20px;
+}
+.c-status.open { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(61, 220, 132, 0.32); }
+.c-status.closed { background: rgba(255, 122, 122, 0.1); color: var(--danger); border: 1px solid rgba(255, 122, 122, 0.32); }
+.c-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+.c-status.open .c-dot { animation: livePulse 2.2s ease-in-out infinite; }
+@keyframes livePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(61, 220, 132, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(61, 220, 132, 0); }
+}
+.contact-panel h3 { font-family: var(--font-display); font-size: 1.1rem; margin-bottom: 12px; }
+.hours-list { list-style: none; }
+.hours-list li {
+  display: flex; justify-content: space-between; gap: 14px; padding: 9px 0;
+  border-bottom: 1px solid var(--line); font-size: 0.9rem; color: var(--muted);
+}
+.hours-list li:last-child { border-bottom: 0; }
+.hours-list li.today { color: var(--text); font-weight: 600; }
+.hours-list li.today .h-day::after {
+  content: "Today"; margin-left: 9px; font-size: 0.66rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--accent);
+}
+.h-note { margin-top: 18px; color: var(--muted); font-size: 0.82rem; }
+.c-cta { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-top: 28px; }
+
 /* ---------- BOOKING ---------- */
 .booking { background: linear-gradient(180deg, var(--bg), #0e1410); }
 .booking-form {
@@ -463,8 +521,10 @@ section[id] { scroll-margin-top: 84px; }
   .hero-stats { gap: 24px; }
   .t-slide { padding: 8px 46px; }
   .t-arrow { top: 30%; }
+  .contact-wrap { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
+  .contact-cards { grid-template-columns: 1fr; }
   .section { padding: 72px 0; }
   .hero { min-height: 92vh; }
   .hero-hologram { opacity: 0.35; }

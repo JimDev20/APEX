@@ -68,6 +68,49 @@ const FAQS = [
   { q: "Is shockwave worth trying?", a: "If you've been chasing a tendon problem with exercise alone for months, it's the treatment that most often breaks the cycle. Your therapist will tell you honestly if it's not the right call." },
 ];
 
+/* Clinic details — swap these for the real practice info */
+const CLINIC = {
+  street: "Ironmonger Row, Clerkenwell",
+  city: "London EC1V 3QN",
+  phone: "+44 20 7946 0321",
+  phoneHref: "tel:+442079460321",
+  email: "book@apexphysio.co.uk",
+  whatsapp: "https://wa.me/447700900123",
+};
+
+const CLINIC_LOCATION = `APEX Physiotherapy, ${CLINIC.street}, ${CLINIC.city}`;
+
+function whatsappHref() {
+  return CLINIC.whatsapp + "?text=" + encodeURIComponent("Hi APEX Physiotherapy, I'd like to ask about a session.");
+}
+
+const HOURS = [
+  { day: "Monday", open: "07:00", close: "20:00" },
+  { day: "Tuesday", open: "07:00", close: "20:00" },
+  { day: "Wednesday", open: "07:00", close: "20:00" },
+  { day: "Thursday", open: "07:00", close: "20:00" },
+  { day: "Friday", open: "07:00", close: "20:00" },
+  { day: "Saturday", open: "08:00", close: "14:00" },
+  { day: "Sunday", open: "", close: "" },
+];
+
+const ICONS = {
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/></svg>',
+  mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2.5 6.8 8.4 5.7a2 2 0 0 0 2.2 0l8.4-5.7"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.9L3 20.5l1.6-4.5a8.3 8.3 0 0 1-.9-3.8 8.4 8.4 0 0 1 8.4-8.4 8.4 8.4 0 0 1 8.9 7.7Z"/></svg>',
+};
+
+const CONTACT_CARDS = [
+  {
+    icon: "pin", label: "Clinic", value: `${CLINIC.street}, ${CLINIC.city}`, action: "Get directions",
+    href: "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(`${CLINIC.street}, ${CLINIC.city}`),
+  },
+  { icon: "phone", label: "Phone", value: CLINIC.phone, action: "Call the clinic", href: CLINIC.phoneHref, copy: CLINIC.phone },
+  { icon: "mail", label: "Email", value: CLINIC.email, action: "Send an email", href: "mailto:" + CLINIC.email, copy: CLINIC.email },
+  { icon: "chat", label: "WhatsApp", value: "Replies within the hour", action: "Message us", href: whatsappHref() },
+];
+
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 
@@ -264,6 +307,91 @@ function toggleFaq(btn) {
   btn.setAttribute("aria-expanded", String(open));
 }
 
+/* ---------- Contact ---------- */
+function toMinutes(hhmm) {
+  const [h, m] = String(hhmm).split(":").map(Number);
+  return h * 60 + m;
+}
+
+function todayIndex() {
+  return (new Date().getDay() + 6) % 7; /* Monday-first */
+}
+
+function openState() {
+  const d = new Date();
+  const idx = todayIndex();
+  const today = HOURS[idx];
+  const mins = d.getHours() * 60 + d.getMinutes();
+  if (!today.open) {
+    const next = HOURS.slice(idx + 1).concat(HOURS.slice(0, idx)).find((h) => h.open);
+    return { open: false, text: "Closed today" + (next ? ` · opens ${next.day} ${next.open}` : "") };
+  }
+  if (mins < toMinutes(today.open)) return { open: false, text: `Closed now · opens ${today.open}` };
+  if (mins >= toMinutes(today.close)) {
+    const next = HOURS.slice(idx + 1).concat(HOURS.slice(0, idx + 1)).find((h) => h.open);
+    return { open: false, text: "Closed now" + (next ? ` · opens ${next.day} ${next.open}` : "") };
+  }
+  return { open: true, text: `Open now · until ${today.close}` };
+}
+
+function renderOpenStatus() {
+  const s = openState();
+  const el = $("#openStatus");
+  el.className = "c-status " + (s.open ? "open" : "closed");
+  el.innerHTML = `<i class="c-dot" aria-hidden="true"></i>${escapeHtml(s.text)}`;
+}
+
+function renderHours() {
+  const idx = todayIndex();
+  $("#hoursList").innerHTML = HOURS.map((h, i) => `
+    <li class="${i === idx ? "today" : ""} ${h.open ? "" : "closed"}">
+      <span class="h-day">${escapeHtml(h.day)}</span>
+      <span>${h.open ? escapeHtml(`${h.open} – ${h.close}`) : "Closed"}</span>
+    </li>`).join("");
+}
+
+async function copyText(text, btn) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    btn.textContent = "Copied";
+    btn.classList.add("done");
+  } catch {
+    btn.textContent = "Copy failed";
+  }
+  window.setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("done"); }, 1600);
+}
+
+function renderContact() {
+  $("#contactCards").innerHTML = CONTACT_CARDS.map((c, i) => `
+    <div class="c-card">
+      <span class="c-icon" aria-hidden="true">${ICONS[c.icon]}</span>
+      <div>
+        <span class="c-label">${escapeHtml(c.label)}</span>
+        <p class="c-value">${escapeHtml(c.value)}</p>
+        <a class="c-action" href="${escapeHtml(c.href)}"${c.href.startsWith("http") ? ' target="_blank" rel="noopener"' : ""}>${escapeHtml(c.action)}</a>
+      </div>
+      ${c.copy ? `<button type="button" class="c-copy" data-copy="${i}" aria-label="Copy ${escapeHtml(c.label.toLowerCase())}">Copy</button>` : ""}
+    </div>`).join("");
+  $$("#contactCards .c-copy").forEach((btn) =>
+    btn.addEventListener("click", () => copyText(CONTACT_CARDS[+btn.dataset.copy].copy, btn)));
+  $("#waCta").href = whatsappHref();
+  renderHours();
+  renderOpenStatus();
+  window.setInterval(renderOpenStatus, 60000);
+}
+
 /* ---------- Booking calendar ---------- */
 const now = new Date();
 let calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -358,8 +486,6 @@ $("#calNext").addEventListener("click", () => { calMonth = new Date(calMonth.get
 $("#bkTherapist").addEventListener("change", () => { selectedTime = ""; renderSlots(); });
 
 /* ---------- Calendar invite (.ics) ---------- */
-const CLINIC_LOCATION = "APEX Physiotherapy, London";
-
 function serviceMinutes(name) {
   const s = SERVICES.find((x) => x.name === name);
   return (s && s.dur) || 60;
@@ -576,7 +702,7 @@ function initAnimations() {
   gsap.from(".hero-content > *", { opacity: 0, y: 30, duration: 0.9, stagger: 0.12, ease: "power3.out", delay: 0.2 });
 
   $$(".section").forEach((sec) => {
-    const targets = sec.querySelectorAll(".card, .method, .step, .g-item, .char-card, .stat, .faq-item");
+    const targets = sec.querySelectorAll(".card, .method, .step, .g-item, .char-card, .stat, .faq-item, .c-card");
     if (!targets.length) return;
     gsap.fromTo(targets,
       { opacity: 0, y: 26 }, {
@@ -619,7 +745,7 @@ window.addEventListener("scroll", () => $("#nav").classList.toggle("scrolled", w
 window.addEventListener("resize", () => { if (window.innerWidth > 860) setNav(false); });
 
 /* active section highlight */
-const sectionIds = ["team", "therapists", "services", "methods", "journey", "gallery", "testimonials", "faq", "booking"];
+const sectionIds = ["team", "therapists", "services", "methods", "journey", "gallery", "testimonials", "faq", "contact", "booking"];
 if ("IntersectionObserver" in window) {
   const io = new IntersectionObserver((entries) => {
     entries.forEach((en) => {
@@ -652,6 +778,7 @@ renderMethods();
 renderGallery();
 renderTestimonials();
 renderFaqs();
+renderContact();
 renderCalendar();
 renderSlots();
 loadBookedSlots();
