@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax check
+        run: |
+          node --check server.js
+          node --check public/js/main.js
+          node --check public/js/admin.js
+
+      - name: Boot smoke test
+        run: |
+          node server.js &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID' EXIT
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/api/slots > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://localhost:3000/ > /dev/null
+          curl -sf http://localhost:3000/api/slots > /dev/null
+          curl -sf http://localhost:3000/api/availability > /dev/null

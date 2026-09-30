@@ -7,6 +7,8 @@ Express API, JSON file storage, no database.
 
 Live site: [apex-physio.vercel.app](https://apex-physio.vercel.app)
 
+[![CI](https://github.com/JimDev20/APEX/actions/workflows/ci.yml/badge.svg)](https://github.com/JimDev20/APEX/actions/workflows/ci.yml)
+
 ## Stack
 
 - **Runtime** Node.js, ESM (`"type": "module"`)
