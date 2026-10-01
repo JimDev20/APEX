@@ -154,9 +154,9 @@ function confirmationHtml(b) {
 </body></html>`;
 }
 
-async function sendBookingConfirmation(b) {
+async function sendEmail({ to, subject, text, html, ref }) {
   if (!process.env.RESEND_API_KEY) {
-    console.log(`[email] RESEND_API_KEY not set — confirmation for ${b.email} not sent (ref ${b.id}).`);
+    console.log(`[email] RESEND_API_KEY not set — "${subject}" to ${to} not sent (ref ${ref}).`);
     return { sent: false, reason: "not-configured" };
   }
   try {
@@ -168,10 +168,10 @@ async function sendBookingConfirmation(b) {
       },
       body: JSON.stringify({
         from: EMAIL_FROM,
-        to: [b.email],
-        subject: `You're booked — ${b.service} on ${longDate(b.date)} at ${b.time}`,
-        text: confirmationText(b),
-        html: confirmationHtml(b),
+        to: [to],
+        subject,
+        text,
+        html,
         ...(CLINIC_EMAIL ? { reply_to: CLINIC_EMAIL } : {}),
       }),
     });
@@ -179,9 +179,81 @@ async function sendBookingConfirmation(b) {
     const out = await res.json().catch(() => ({}));
     return { sent: true, id: out.id || null };
   } catch (err) {
-    console.warn(`[email] confirmation failed for ${b.email} (ref ${b.id}):`, err.message);
+    console.warn(`[email] send failed to ${to} (ref ${ref}):`, err.message);
     return { sent: false, reason: "send-failed" };
   }
+}
+
+function cancellationText(b) {
+  return [
+    `Hi ${b.name},`,
+    "",
+    `Your APEX Physiotherapy session has been cancelled. Here's what was cancelled:`,
+    "",
+    `  Treatment:  ${b.service}`,
+    `  Cancelled:  ${longDate(b.date)}, ${b.time}`,
+    `  Therapist:  ${b.therapist}`,
+    "",
+    `Reference: ${b.id}`,
+    "",
+    `The slot is back on the calendar so someone else can take it. Nothing else to do.`,
+    `Want another time? Book again here:`,
+    `${SITE_URL}/#booking`,
+    "",
+    `See you soon,`,
+    `APEX Physiotherapy`,
+    SITE_URL,
+  ].join("\n");
+}
+
+function cancellationHtml(b) {
+  const row = (label, value) =>
+    `<tr><td style="padding:10px 0;border-bottom:1px solid #1f2a24;color:#8fa398;font-size:13px;vertical-align:top;white-space:nowrap">${label}</td>` +
+    `<td style="padding:10px 0;border-bottom:1px solid #1f2a24;color:#e8f0eb;font-size:15px">${value}</td></tr>`;
+  return `<!DOCTYPE html>
+<html><body style="margin:0;padding:24px;background:#f2f5f3;font-family:-apple-system,Segoe UI,Inter,Roboto,Helvetica,Arial,sans-serif">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#0b0e0c;border-radius:16px;overflow:hidden;border:1px solid #1f2a24">
+    <tr><td style="padding:28px 28px 8px">
+      <p style="margin:0;color:#3ddc84;font-size:12px;letter-spacing:2px;font-weight:700">APEX</p>
+      <h1 style="margin:8px 0 4px;color:#e8f0eb;font-size:22px;line-height:1.3">Session cancelled, ${esc(
+        String(b.name).split(" ")[0] || "there"
+      )}.</h1>
+      <p style="margin:0;color:#8fa398;font-size:14px">Your slot is free for someone else to book.</p>
+    </td></tr>
+    <tr><td style="padding:20px 28px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        ${row("Treatment", esc(b.service))}
+        ${row("Cancelled", esc(`${longDate(b.date)}, ${b.time}`))}
+        ${row("Therapist", esc(b.therapist))}
+        ${row("Reference", `<code style="color:#3ddc84">${esc(b.id)}</code>`)}
+      </table>
+    </td></tr>
+    <tr><td style="padding:8px 28px 28px">
+      <a href="${esc(SITE_URL)}/#booking" style="display:inline-block;background:#3ddc84;color:#06230f;font-weight:700;font-size:15px;text-decoration:none;padding:13px 22px;border-radius:10px">Book another session</a>
+      <p style="margin:18px 0 0;color:#8fa398;font-size:13px;line-height:1.6">Cancelling inside 24 hours of the session may carry the session fee, as per our policy. Reply to this email if that's the case.</p>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+function sendCancellationNotice(b) {
+  return sendEmail({
+    to: b.email,
+    subject: `Cancelled — ${b.service} on ${longDate(b.date)} at ${b.time}`,
+    text: cancellationText(b),
+    html: cancellationHtml(b),
+    ref: b.id,
+  });
+}
+
+function sendBookingConfirmation(b) {
+  return sendEmail({
+    to: b.email,
+    subject: `You're booked — ${b.service} on ${longDate(b.date)} at ${b.time}`,
+    text: confirmationText(b),
+    html: confirmationHtml(b),
+    ref: b.id,
+  });
 }
 
 function therapistKey(t) {
@@ -338,6 +410,94 @@ function loginPage(error) {
 </body>
 </html>`;
 }
+
+/* ---------- Self-service booking management ---------- */
+const LOOKUP_MAX_ATTEMPTS = 12;
+const LOOKUP_LOCK_MS = 15 * 60 * 1000;
+const lookupAttempts = new Map();
+const NO_MATCH_ERROR =
+  "We couldn't find a booking with those details. Check the reference and email in your confirmation.";
+
+function lookupLocked(ip) {
+  const rec = lookupAttempts.get(ip);
+  return !!rec && rec.until > Date.now();
+}
+
+function recordLookupFailure(ip) {
+  const now = Date.now();
+  const prev = lookupAttempts.get(ip);
+  const rec = prev && now - prev.firstAt < LOOKUP_LOCK_MS ? prev : { count: 0, firstAt: now };
+  rec.count += 1;
+  if (rec.count >= LOOKUP_MAX_ATTEMPTS) rec.until = now + LOOKUP_LOCK_MS;
+  if (lookupAttempts.size > 5000) lookupAttempts.clear();
+  lookupAttempts.set(ip, rec);
+}
+
+function sameEmail(a, b) {
+  const given = Buffer.from(String(a || "").trim().toLowerCase());
+  const expected = Buffer.from(String(b || "").trim().toLowerCase());
+  return given.length > 0 && given.length === expected.length && crypto.timingSafeEqual(given, expected);
+}
+
+/* Reference alone is not enough — both the reference and the email must match. */
+function lookupBooking(reference, email) {
+  const ref = String(reference || "").trim().slice(0, 64);
+  if (!ref || !email) return null;
+  const match = readData().bookings.find((b) => b.id === ref);
+  return match && sameEmail(match.email, email) ? match : null;
+}
+
+/* Only what the owner of the booking needs to see — never contact details back out. */
+function publicBooking(b) {
+  return {
+    reference: b.id,
+    name: b.name,
+    service: b.service,
+    date: b.date,
+    time: b.time,
+    end: hhmm(sessionEnd(b)),
+    therapist: b.therapist,
+  };
+}
+
+function handleLookup(req, res) {
+  const ip = clientIp(req);
+  if (lookupLocked(ip)) {
+    return res.status(429).json({ error: "Too many attempts. Try again in a few minutes." });
+  }
+  const { reference, email } = req.body || {};
+  const booking = lookupBooking(reference, email);
+  if (!booking) {
+    recordLookupFailure(ip);
+    return res.status(404).json({ error: NO_MATCH_ERROR });
+  }
+  lookupAttempts.delete(ip);
+  res.json({ booking: publicBooking(booking) });
+}
+
+app.post("/api/booking/lookup", handleLookup);
+
+app.post("/api/booking/cancel", async (req, res) => {
+  const ip = clientIp(req);
+  if (lookupLocked(ip)) {
+    return res.status(429).json({ error: "Too many attempts. Try again in a few minutes." });
+  }
+  const { reference, email } = req.body || {};
+  const booking = lookupBooking(reference, email);
+  if (!booking) {
+    recordLookupFailure(ip);
+    return res.status(404).json({ error: NO_MATCH_ERROR });
+  }
+
+  const data = readData();
+  data.bookings = data.bookings.filter((b) => b.id !== booking.id);
+  writeData(data);
+  lookupAttempts.delete(ip);
+
+  const mailStatus = await sendCancellationNotice(booking);
+  console.log(`[booking] ${booking.id} cancelled by customer (${booking.date} ${booking.time}).`);
+  res.json({ ok: true, booking: publicBooking(booking), email: mailStatus.sent ? "sent" : mailStatus.reason });
+});
 
 app.get("/api/slots", (req, res) => {
   res.json(SERVICE_TIMES);

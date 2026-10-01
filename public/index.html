@@ -28,6 +28,7 @@
       <li><a href="#gallery">Gallery</a></li>
       <li><a href="#faq">FAQ</a></li>
       <li><a href="#contact">Contact</a></li>
+      <li><a href="#manage">Manage</a></li>
       <li><a href="#booking" class="nav-cta">Book Session</a></li>
     </ul>
   </nav>
@@ -324,6 +325,27 @@
     </div>
   </section>
 
+  <!-- 14 MANAGE BOOKING -->
+  <section class="manage section" id="manage">
+    <div class="container">
+      <p class="eyebrow center">MANAGE YOUR BOOKING</p>
+      <h2 class="section-title">Plans changed?</h2>
+      <p class="section-sub">
+        Enter the reference from your confirmation email and the address you booked with. You can
+        check the details or cancel the session — the slot goes straight back on the calendar.
+      </p>
+      <form class="booking-form" id="manageForm" novalidate>
+        <div class="bf-row">
+          <label>Reference <input id="mnRef" type="text" placeholder="bk_…" autocomplete="off" spellcheck="false" required /></label>
+          <label>Email <input id="mnEmail" type="email" placeholder="you@email.com" required /></label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="mnLookup">Find my booking</button>
+        <p class="form-msg" id="mnMsg" role="status" aria-live="polite"></p>
+      </form>
+      <div class="mn-result" id="mnResult" hidden></div>
+    </div>
+  </section>
+
   <footer class="footer">
     <div class="container">
       <div class="footer-top">
@@ -337,6 +359,7 @@
           <a href="#pricing">Pricing</a>
           <a href="#faq">FAQ</a>
           <a href="#contact">Contact</a>
+          <a href="#manage">Manage</a>
           <a href="#booking">Book</a>
           <a href="/admin">Admin</a>
         </div>

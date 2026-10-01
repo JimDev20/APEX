@@ -727,11 +727,14 @@ $("#bookingForm").addEventListener("submit", async (e) => {
            ? `Confirmation email sent to <strong>${escapeHtml(b.email)}</strong>.`
            : `Add <strong>${escapeHtml(b.email)}</strong> to your calendar below, or message us on WhatsApp to confirm.`
        }</p>
-       <div class="modal-actions">
-         <a class="btn btn-primary" href="${escapeHtml(data.whatsapp)}" target="_blank" rel="noopener">Confirm on WhatsApp</a>
-         <button type="button" class="btn btn-ghost" data-download-ics>Add to calendar</button>
-         <a class="btn btn-ghost" href="${escapeHtml(googleCalUrl(b))}" target="_blank" rel="noopener">Google Calendar</a>
-       </div>`
+<div class="modal-actions">
+          <a class="btn btn-primary" href="${escapeHtml(data.whatsapp)}" target="_blank" rel="noopener">Confirm on WhatsApp</a>
+          <button type="button" class="btn btn-ghost" data-download-ics>Add to calendar</button>
+          <a class="btn btn-ghost" href="${escapeHtml(googleCalUrl(b))}" target="_blank" rel="noopener">Google Calendar</a>
+        </div>
+        <p style="margin-top:16px;font-size:0.85rem">Plans changed? You can cancel yourself any time with reference
+        <code style="color:var(--accent)">${escapeHtml(b.id)}</code> in the
+        <a href="#manage" style="color:var(--accent)">manage your booking</a> section.</p>`
     );
     $("#modalBody [data-download-ics]").addEventListener("click", () => downloadICS(b));
     $("#bookingForm").reset();
@@ -747,6 +750,110 @@ $("#bookingForm").addEventListener("submit", async (e) => {
   } finally {
     btn.disabled = false;
     btn.textContent = btn.dataset.label || "Confirm booking";
+  }
+});
+
+/* ---------- Manage booking ---------- */
+let managedBooking = null;
+
+function mnMessage(text, kind) {
+  const el = $("#mnMsg");
+  el.className = "form-msg" + (kind ? " " + kind : "");
+  el.textContent = text;
+}
+
+function clearManaged() {
+  managedBooking = null;
+  const box = $("#mnResult");
+  box.hidden = true;
+  box.innerHTML = "";
+}
+
+function renderManaged(b) {
+  managedBooking = b;
+  $("#mnRef").value = b.reference;
+  const box = $("#mnResult");
+  const cal = { id: b.reference, date: b.date, time: b.time, service: b.service, therapist: b.therapist };
+  box.innerHTML = `
+    <div class="mn-top">
+      <h3>${escapeHtml(b.service)}</h3>
+      <span class="mn-ref">${escapeHtml(b.reference)}</span>
+    </div>
+    <div class="mn-rows">
+      <div class="mn-row"><span>When</span><strong>${escapeHtml(fmtDate(b.date))} · ${escapeHtml(b.time)}–${escapeHtml(b.end)}</strong></div>
+      <div class="mn-row"><span>Therapist</span><strong>${escapeHtml(b.therapist)}</strong></div>
+      <div class="mn-row"><span>Name</span><strong>${escapeHtml(b.name)}</strong></div>
+    </div>
+    <div class="mn-actions">
+      <button type="button" class="btn btn-danger-solid" data-mn-cancel>Cancel this session</button>
+      <a class="btn btn-ghost" href="${escapeHtml(googleCalUrl(cal))}" target="_blank" rel="noopener">Google Calendar</a>
+      <a class="btn btn-ghost" href="#booking" data-mn-rebook>Book another time</a>
+    </div>`;
+  box.hidden = false;
+  box.querySelector("[data-mn-cancel]").addEventListener("click", cancelManaged);
+  box.querySelector("[data-mn-rebook]").addEventListener("click", () => {
+    document.querySelector("#booking").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
+  });
+}
+
+async function cancelManaged() {
+  if (!managedBooking) return;
+  const b = managedBooking;
+  if (!confirm(`Cancel ${b.service} on ${fmtDate(b.date)} at ${b.time}?`)) return;
+  const btn = $("#mnResult [data-mn-cancel]");
+  btn.disabled = true;
+  btn.textContent = "Cancelling…";
+  try {
+    const res = await fetch("/api/booking/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reference: b.reference, email: $("#mnEmail").value.trim() }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "We couldn't cancel that booking.");
+    clearManaged();
+    $("#manageForm").reset();
+    mnMessage(
+      data.email === "sent"
+        ? "Cancelled — a confirmation email is on its way and your slot is free again."
+        : "Cancelled — your slot is free again. Book another time whenever you're ready.",
+      "ok"
+    );
+    loadBookedSlots();
+  } catch (err) {
+    mnMessage(err.message, "err");
+    btn.disabled = false;
+    btn.textContent = "Cancel this session";
+  }
+}
+
+$("#manageForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("#mnLookup");
+  const reference = $("#mnRef").value.trim();
+  const email = $("#mnEmail").value.trim();
+  if (!reference || !email) return mnMessage("Please enter both your reference and your email address.", "err");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return mnMessage("That email address doesn't look right.", "err");
+
+  btn.disabled = true;
+  btn.textContent = "Looking…";
+  mnMessage("", "");
+  try {
+    const res = await fetch("/api/booking/lookup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reference, email }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "We couldn't find that booking.");
+    renderManaged(data.booking);
+    mnMessage("Found it — check the details below.", "ok");
+  } catch (err) {
+    clearManaged();
+    mnMessage(err.message, "err");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Find my booking";
   }
 });
 
@@ -852,7 +959,7 @@ window.addEventListener("scroll", () => $("#nav").classList.toggle("scrolled", w
 window.addEventListener("resize", () => { if (window.innerWidth > 860) setNav(false); });
 
 /* active section highlight */
-const sectionIds = ["team", "therapists", "services", "methods", "pricing", "journey", "gallery", "testimonials", "faq", "contact", "booking"];
+const sectionIds = ["team", "therapists", "services", "methods", "pricing", "journey", "gallery", "testimonials", "faq", "contact", "booking", "manage"];
 if ("IntersectionObserver" in window) {
   const io = new IntersectionObserver((entries) => {
     entries.forEach((en) => {

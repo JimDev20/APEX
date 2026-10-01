@@ -57,10 +57,16 @@ works in local development without any keys.
 | `GET` | `/api/slots` | no | Service times and bookable slots |
 | `GET` | `/api/availability` | no | Booked slots for a given date |
 | `POST` | `/api/bookings` | no | Create a booking, sends confirmation |
+| `POST` | `/api/booking/lookup` | no | Find your booking with reference + email |
+| `POST` | `/api/booking/cancel` | no | Cancel your booking, sends cancellation email |
 | `GET` | `/api/bookings` | admin | List all bookings |
 | `DELETE` | `/api/bookings/:id` | admin | Delete a booking |
 | `POST` | `/admin/login` | no | Exchange password for a session cookie |
 | `POST` | `/api/admin/logout` | admin | Clear the session |
+
+Self-service lookup and cancellation require both the booking reference and the
+email address the booking was made with. Failures are rate limited per IP and
+return the same message either way, so a reference can't be probed for validity.
 
 ## Services
 
