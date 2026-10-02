@@ -30,6 +30,8 @@
     .btn-danger:hover { background: rgba(255,122,122,0.12); }
     .empty { text-align: center; color: var(--muted); padding: 60px 0; }
     .count-badge { background: var(--accent-dim); color: var(--accent); border-radius: 999px; padding: 4px 12px; font-size: 0.85rem; font-weight: 600; }
+    .admin-actions { display: flex; gap: 10px; align-items: center; }
+    #btnExport { font-family: inherit; cursor: pointer; font-size: 0.82rem; padding: 7px 14px; }
     .btn-danger:disabled { opacity: 0.5; cursor: wait; }
     #btnLogout { font-family: inherit; cursor: pointer; font-size: 0.82rem; padding: 7px 14px; }
     @media (max-width: 860px) {
@@ -58,7 +60,10 @@
         <p class="eyebrow">ADMIN</p>
         <h1 class="section-title" style="text-align:left">Bookings</h1>
       </div>
-      <span class="count-badge" id="count">0</span>
+      <div class="admin-actions">
+        <span class="count-badge" id="count">0</span>
+        <button class="btn-ghost btn-sm" id="btnExport" type="button">Export CSV</button>
+      </div>
     </div>
     <div class="filters">
       <input id="fSearch" type="search" placeholder="Search name / email / service…" />

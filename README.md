@@ -60,6 +60,7 @@ works in local development without any keys.
 | `POST` | `/api/booking/lookup` | no | Find your booking with reference + email |
 | `POST` | `/api/booking/cancel` | no | Cancel your booking, sends cancellation email |
 | `GET` | `/api/bookings` | admin | List all bookings |
+| `GET` | `/api/bookings/export` | admin | Download all bookings as CSV |
 | `DELETE` | `/api/bookings/:id` | admin | Delete a booking |
 | `POST` | `/admin/login` | no | Exchange password for a session cookie |
 | `POST` | `/api/admin/logout` | admin | Clear the session |

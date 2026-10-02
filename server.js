@@ -514,6 +514,33 @@ app.get("/api/bookings", requireAdmin, (req, res) => {
   res.json({ bookings });
 });
 
+function csvCell(v) {
+  const s = String(v ?? "");
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function bookingsCSV(bookings) {
+  const header = ["id", "name", "email", "phone", "service", "therapist", "date", "time", "notes", "created"];
+  const lines = [header.join(",")];
+  for (const b of bookings) {
+    lines.push(
+      [b.id, b.name, b.email, b.phone, b.service, b.therapist, b.date, b.time, b.notes, b.created]
+        .map(csvCell)
+        .join(",")
+    );
+  }
+  return "\uFEFF" + lines.join("\r\n") + "\r\n";
+}
+
+app.get("/api/bookings/export", requireAdmin, (req, res) => {
+  const { bookings } = readData();
+  const sorted = bookings.slice().sort((a, b) => (a.date || "").localeCompare(b.date || "") || (a.time || "").localeCompare(b.time || ""));
+  const day = new Date().toISOString().slice(0, 10);
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="apex-bookings-${day}.csv"`);
+  res.send(bookingsCSV(sorted));
+});
+
 app.post("/api/bookings", async (req, res) => {
   const body = req.body || {};
   const name = String(body.name || "").trim();

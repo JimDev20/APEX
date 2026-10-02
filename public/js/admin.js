@@ -93,4 +93,30 @@ $("#btnLogout").addEventListener("click", async () => {
   location.replace("/admin");
 });
 
+$("#btnExport").addEventListener("click", async () => {
+  const btn = $("#btnExport");
+  btn.disabled = true;
+  btn.textContent = "Exporting…";
+  try {
+    const res = await fetch("/api/bookings/export");
+    if (res.status === 401) { location.replace("/admin"); return; }
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const day = new Date().toISOString().slice(0, 10);
+    a.download = `apex-bookings-${day}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch {
+    alert("Could not export bookings. Please try again.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Export CSV";
+  }
+});
+
 load();
