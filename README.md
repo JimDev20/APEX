@@ -68,6 +68,10 @@ works in local development without any keys.
 Self-service lookup and cancellation require both the booking reference and the
 email address the booking was made with. Failures are rate limited per IP and
 return the same message either way, so a reference can't be probed for validity.
+These endpoints are intentionally not linked anywhere in the public site — the
+booking reference lives only in the confirmation email, and changes go through
+staff (admin panel, email or WhatsApp). The admin panel itself (`/admin`) is
+also not linked from the public navigation or footer.
 
 ## Services
 
