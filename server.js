@@ -499,6 +499,13 @@ app.post("/api/booking/cancel", async (req, res) => {
   res.json({ ok: true, booking: publicBooking(booking), email: mailStatus.sent ? "sent" : mailStatus.reason });
 });
 
+const START_TIME = Date.now();
+
+/* Health check — no auth, no secrets, no customer data. For uptime monitors/Vercel. */
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", uptime: Math.floor((Date.now() - START_TIME) / 1000), time: new Date().toISOString() });
+});
+
 app.get("/api/slots", (req, res) => {
   res.json(SERVICE_TIMES);
 });

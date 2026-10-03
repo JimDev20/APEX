@@ -54,6 +54,7 @@ works in local development without any keys.
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
+| `GET` | `/api/health` | no | Health check (status + uptime, no secrets) |
 | `GET` | `/api/slots` | no | Service times and bookable slots |
 | `GET` | `/api/availability` | no | Booked slots for a given date |
 | `POST` | `/api/bookings` | no | Create a booking, sends confirmation |
