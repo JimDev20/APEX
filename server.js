@@ -15,14 +15,15 @@ const DATA_DIR = IS_VERCEL
   : path.join(__dirname, "data");
 const DATA_FILE = path.join(DATA_DIR, "bookings.json");
 
-let memoryStore = { bookings: [] };
+let memoryStore = { bookings: [], waitlist: [] };
 function loadStore() {
   try {
     if (fs.existsSync(DATA_FILE)) memoryStore = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
   } catch {
-    memoryStore = { bookings: [] };
+    memoryStore = { bookings: [], waitlist: [] };
   }
-  if (!memoryStore || !Array.isArray(memoryStore.bookings)) memoryStore = { bookings: [] };
+  if (!memoryStore || !Array.isArray(memoryStore.bookings)) memoryStore = { bookings: [], waitlist: [] };
+  if (!Array.isArray(memoryStore.waitlist)) memoryStore.waitlist = [];
 }
 loadStore();
 
@@ -512,8 +513,16 @@ app.get("/api/slots", (req, res) => {
 
 /* public slot availability only — no customer data */
 app.get("/api/availability", (_req, res) => {
-  const { bookings } = readData();
-  res.json({ bookings: bookings.map((b) => ({ date: b.date, time: b.time, therapist: b.therapist })) });
+  const { bookings, waitlist } = readData();
+  const waitlistCounts = {};
+  for (const w of waitlist || []) {
+    const k = `${w.date}|${w.time}`;
+    waitlistCounts[k] = (waitlistCounts[k] || 0) + 1;
+  }
+  res.json({
+    bookings: bookings.map((b) => ({ date: b.date, time: b.time, therapist: b.therapist })),
+    waitlistCounts,
+  });
 });
 
 app.get("/api/bookings", requireAdmin, (req, res) => {
@@ -613,6 +622,123 @@ app.post("/api/bookings", async (req, res) => {
   const whatsapp = whatsappLink(booking);
 
   res.status(201).json({ booking, whatsapp, email: mailStatus.sent ? "sent" : mailStatus.reason });
+});
+
+/* ---------- Waitlist: join when a slot is full, promote from admin ---------- */
+function validateWaitlistInput(body) {
+  const name = String(body.name || "").trim();
+  const email = String(body.email || "").trim();
+  const phone = String(body.phone || "").trim().slice(0, 40);
+  const service = String(body.service || "").trim();
+  const therapist = String(body.therapist || "").trim();
+  const date = String(body.date || "").trim();
+  const time = String(body.time || "").trim();
+  const notes = String(body.notes || "").trim().slice(0, 1000);
+
+  if (!name || !email || !service || !date || !time) {
+    return { error: "Missing required fields (name, email, service, date, time)." };
+  }
+  if (name.length > 120 || email.length > 200) {
+    return { error: "Name or email is too long." };
+  }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return { error: "Please provide a valid email address." };
+  }
+  if (!ALL_SLOTS.has(time)) {
+    return { error: "Invalid time slot." };
+  }
+  const isoDate = new Date(date + "T00:00:00");
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  if (Number.isNaN(isoDate.getTime()) || isoDate < todayStart) {
+    return { error: "Date must be today or in the future." };
+  }
+  const slotDate = new Date(date + "T" + time + ":00");
+  if (Number.isNaN(slotDate.getTime()) || slotDate.getTime() <= Date.now() + LEAD_MS) {
+    return { error: "That time has already passed — please pick a later slot." };
+  }
+  return { name, email, phone, service, therapist, date, time, notes };
+}
+
+app.post("/api/waitlist", (req, res) => {
+  const parsed = validateWaitlistInput(req.body || {});
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const { name, email, phone, service, therapist, date, time, notes } = parsed;
+  const key = therapistKey(therapist);
+
+  const data = readData();
+  const dup = (data.waitlist || []).find(
+    (w) => w.date === date && w.time === time && sameEmail(w.email, email)
+  );
+  if (dup) {
+    return res.status(409).json({ error: "You're already on the waitlist for that slot." });
+  }
+
+  const entry = {
+    id: "wl_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name,
+    email,
+    phone,
+    service,
+    therapist: key === "any" ? "First available" : key,
+    date,
+    time,
+    notes,
+    created: new Date().toISOString(),
+  };
+  data.waitlist.push(entry);
+  writeData(data);
+  const position = data.waitlist.filter((w) => w.date === date && w.time === time).length;
+  res.status(201).json({ entry, position });
+});
+
+app.get("/api/waitlist", requireAdmin, (_req, res) => {
+  const { waitlist } = readData();
+  res.json({ waitlist: (waitlist || []).slice() });
+});
+
+app.delete("/api/waitlist/:id", requireAdmin, (req, res) => {
+  const data = readData();
+  const before = (data.waitlist || []).length;
+  data.waitlist = (data.waitlist || []).filter((w) => w.id !== req.params.id);
+  if (data.waitlist.length === before) {
+    return res.status(404).json({ error: "Waitlist entry not found." });
+  }
+  writeData(data);
+  res.json({ ok: true });
+});
+
+app.post("/api/waitlist/:id/promote", requireAdmin, async (req, res) => {
+  const data = readData();
+  const entry = (data.waitlist || []).find((w) => w.id === req.params.id);
+  if (!entry) return res.status(404).json({ error: "Waitlist entry not found." });
+
+  const key = therapistKey(entry.therapist);
+  const clash = data.bookings.find(
+    (b) => b.date === entry.date && b.time === entry.time && slotConflicts(therapistKey(b.therapist), key)
+  );
+  if (clash) {
+    return res.status(409).json({ error: "That time slot is still booked. Free it first." });
+  }
+
+  const booking = {
+    id: "bk_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name: entry.name,
+    email: entry.email,
+    phone: entry.phone || "",
+    service: entry.service,
+    therapist: key === "any" ? "First available" : entry.therapist,
+    date: entry.date,
+    time: entry.time,
+    notes: entry.notes || "",
+    created: new Date().toISOString(),
+  };
+  data.bookings.push(booking);
+  data.waitlist = data.waitlist.filter((w) => w.id !== entry.id);
+  writeData(data);
+
+  const mailStatus = await sendBookingConfirmation(booking);
+  res.status(201).json({ booking, email: mailStatus.sent ? "sent" : mailStatus.reason });
 });
 
 app.delete("/api/bookings/:id", requireAdmin, (req, res) => {

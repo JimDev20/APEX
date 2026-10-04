@@ -743,13 +743,49 @@ $("#bookingForm").addEventListener("submit", async (e) => {
     renderCalendar();
     loadBookedSlots();
   } catch (err) {
-    fail(err.message);
+    const msgText = (err && err.message) || "Booking failed.";
+    if (/already booked/i.test(msgText)) {
+      msg.className = "form-msg err";
+      msg.innerHTML = "";
+      msg.append(document.createTextNode(msgText + " "));
+      const wlBtn = document.createElement("button");
+      wlBtn.type = "button";
+      wlBtn.className = "btn btn-ghost";
+      wlBtn.textContent = "Join waitlist for this slot";
+      wlBtn.addEventListener("click", () => joinWaitlist(payload, wlBtn));
+      msg.append(wlBtn);
+    } else {
+      fail(msgText);
+    }
     loadBookedSlots();
   } finally {
     btn.disabled = false;
     btn.textContent = btn.dataset.label || "Confirm booking";
   }
 });
+
+async function joinWaitlist(payload, btn) {
+  const msg = $("#formMsg");
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Joining…";
+  try {
+    const res = await fetch("/api/waitlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not join waitlist.");
+    msg.className = "form-msg ok";
+    msg.textContent = `You're #${data.position} on the waitlist for ${payload.date} at ${payload.time}. We'll email ${payload.email} if it frees up.`;
+  } catch (e) {
+    msg.className = "form-msg err";
+    msg.textContent = e.message;
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
 
 /* ---------- Modal ---------- */
 let lastFocused = null;

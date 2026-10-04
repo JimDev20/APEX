@@ -58,6 +58,10 @@ works in local development without any keys.
 | `GET` | `/api/slots` | no | Service times and bookable slots |
 | `GET` | `/api/availability` | no | Booked slots for a given date |
 | `POST` | `/api/bookings` | no | Create a booking, sends confirmation |
+| `POST` | `/api/waitlist` | no | Join the waitlist for a full slot |
+| `GET` | `/api/waitlist` | admin | List waitlist entries |
+| `POST` | `/api/waitlist/:id/promote` | admin | Promote a waitlist entry to a booking |
+| `DELETE` | `/api/waitlist/:id` | admin | Remove a waitlist entry |
 | `POST` | `/api/booking/lookup` | no | Find your booking with reference + email |
 | `POST` | `/api/booking/cancel` | no | Cancel your booking, sends cancellation email |
 | `GET` | `/api/bookings` | admin | List all bookings |
