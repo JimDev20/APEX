@@ -32,6 +32,16 @@
     .count-badge { background: var(--accent-dim); color: var(--accent); border-radius: 999px; padding: 4px 12px; font-size: 0.85rem; font-weight: 600; }
     .admin-actions { display: flex; gap: 10px; align-items: center; }
     #btnExport { font-family: inherit; cursor: pointer; font-size: 0.82rem; padding: 7px 14px; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+    .stat-card {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .stat-card .s-num { font-size: 1.5rem; font-weight: 700; color: var(--text); }
+    .stat-card .s-label { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
+    .stat-card.highlight { border-color: var(--accent); }
+    .stat-card.highlight .s-num { color: var(--accent); }
+    #btnClear { font-family: inherit; cursor: pointer; font-size: 0.82rem; padding: 10px 14px; }
     .btn-danger:disabled { opacity: 0.5; cursor: wait; }
     #btnLogout { font-family: inherit; cursor: pointer; font-size: 0.82rem; padding: 7px 14px; }
     @media (max-width: 860px) {
@@ -41,6 +51,7 @@
     @media (max-width: 640px) {
       .bk-card { grid-template-columns: 1fr; }
       .bk-actions { align-items: stretch; flex-direction: row; justify-content: space-between; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
     }
   </style>
 </head>
@@ -65,9 +76,29 @@
         <button class="btn-ghost btn-sm" id="btnExport" type="button">Export CSV</button>
       </div>
     </div>
+    <div class="stats" id="stats" aria-label="Booking summary">
+      <div class="stat-card"><div class="s-num" id="statTotal">0</div><div class="s-label">Total bookings</div></div>
+      <div class="stat-card highlight"><div class="s-num" id="statToday">0</div><div class="s-label">Today</div></div>
+      <div class="stat-card"><div class="s-num" id="statUpcoming">0</div><div class="s-label">Upcoming</div></div>
+      <div class="stat-card"><div class="s-num" id="statPast">0</div><div class="s-label">Past</div></div>
+    </div>
     <div class="filters">
       <input id="fSearch" type="search" placeholder="Search name / email / service…" />
       <select id="fService"><option value="">All services</option></select>
+      <select id="fTherapist"><option value="">All therapists</option></select>
+      <input id="fDate" type="date" aria-label="Filter by date" />
+      <select id="fStatus" aria-label="Filter by status">
+        <option value="">All dates</option>
+        <option value="today">Today</option>
+        <option value="upcoming">Upcoming</option>
+        <option value="past">Past</option>
+      </select>
+      <select id="fSort" aria-label="Sort bookings">
+        <option value="date-asc">Soonest first</option>
+        <option value="date-desc">Latest first</option>
+        <option value="created-desc">Newest booked</option>
+      </select>
+      <button class="btn-ghost btn-sm" id="btnClear" type="button">Clear</button>
     </div>
     <div class="bookings" id="list"></div>
     <p class="empty" id="empty" hidden>No bookings yet.</p>

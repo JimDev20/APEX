@@ -32,6 +32,42 @@ function populateFilters() {
   sel.innerHTML = `<option value="">All services</option>` +
     svcs.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
   if (svcs.includes(prev)) sel.value = prev;
+
+  const tSel = $("#fTherapist");
+  if (tSel) {
+    const tPrev = tSel.value;
+    const therapists = [...new Set(all.map((b) => b.therapist).filter(Boolean))].sort();
+    tSel.innerHTML = `<option value="">All therapists</option>` +
+      therapists.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+    if (therapists.includes(tPrev)) tSel.value = tPrev;
+  }
+}
+
+function todayISO() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+/* today / upcoming / past relative to local calendar day */
+function bookingStatus(b) {
+  const today = todayISO();
+  if ((b.date || "") < today) return "past";
+  if ((b.date || "") > today) return "upcoming";
+  return "today";
+}
+
+function renderStats() {
+  let today = 0, upcoming = 0, past = 0;
+  for (const b of all) {
+    const s = bookingStatus(b);
+    if (s === "today") today += 1;
+    else if (s === "upcoming") upcoming += 1;
+    else past += 1;
+  }
+  $("#statTotal").textContent = String(all.length);
+  $("#statToday").textContent = String(today);
+  $("#statUpcoming").textContent = String(upcoming);
+  $("#statPast").textContent = String(past);
 }
 
 function fmtCreated(b) {
@@ -41,11 +77,27 @@ function fmtCreated(b) {
 }
 
 function render() {
+  renderStats();
   const q = ($("#fSearch").value || "").trim().toLowerCase();
   const svc = $("#fService").value;
+  const therapist = $("#fTherapist") ? $("#fTherapist").value : "";
+  const date = $("#fDate") ? $("#fDate").value : "";
+  const status = $("#fStatus") ? $("#fStatus").value : "";
+  const sort = $("#fSort") ? $("#fSort").value : "date-asc";
   const list = all.filter((b) => {
     const hay = `${b.name || ""} ${b.email || ""} ${b.service || ""} ${b.therapist || ""} ${b.notes || ""}`.toLowerCase();
-    return hay.includes(q) && (!svc || b.service === svc);
+    if (!hay.includes(q)) return false;
+    if (svc && b.service !== svc) return false;
+    if (therapist && b.therapist !== therapist) return false;
+    if (date && b.date !== date) return false;
+    if (status && bookingStatus(b) !== status) return false;
+    return true;
+  });
+  list.sort((a, b) => {
+    if (sort === "created-desc") return String(b.created || "").localeCompare(String(a.created || ""));
+    const cmp = String(a.date || "").localeCompare(String(b.date || "")) ||
+      String(a.time || "").localeCompare(String(b.time || ""));
+    return sort === "date-desc" ? -cmp : cmp;
   });
   $("#count").textContent = list.length + " booking" + (list.length === 1 ? "" : "s");
   $("#empty").hidden = list.length !== 0;
@@ -86,6 +138,19 @@ function render() {
 
 $("#fSearch").addEventListener("input", render);
 $("#fService").addEventListener("change", render);
+$("#fTherapist").addEventListener("change", render);
+$("#fDate").addEventListener("change", render);
+$("#fStatus").addEventListener("change", render);
+$("#fSort").addEventListener("change", render);
+$("#btnClear").addEventListener("click", () => {
+  $("#fSearch").value = "";
+  $("#fService").value = "";
+  $("#fTherapist").value = "";
+  $("#fDate").value = "";
+  $("#fStatus").value = "";
+  $("#fSort").value = "date-asc";
+  render();
+});
 $("#btnLogout").addEventListener("click", async () => {
   try {
     await fetch("/api/admin/logout", { method: "POST" });
