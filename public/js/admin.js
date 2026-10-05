@@ -4,6 +4,7 @@
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 let all = [];
+let waitlist = [];
 
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -184,4 +185,77 @@ $("#btnExport").addEventListener("click", async () => {
   }
 });
 
+async function loadWaitlist() {
+  const box = $("#wlist");
+  if (!box) return;
+  try {
+    const res = await fetch("/api/waitlist");
+    if (res.status === 401) { location.replace("/admin"); return; }
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    waitlist = (data.waitlist || []).slice()
+      .sort((a, b) => (a.date || "").localeCompare(b.date || "") || (a.time || "").localeCompare(b.time || ""));
+    renderWaitlist();
+  } catch {
+    box.innerHTML = `<p class="empty">Could not load waitlist.</p>`;
+  }
+}
+
+function renderWaitlist() {
+  const box = $("#wlist");
+  const empty = $("#wempty");
+  const count = $("#wcount");
+  if (!box) return;
+  if (count) count.textContent = String(waitlist.length);
+  if (empty) empty.hidden = waitlist.length !== 0;
+  box.innerHTML = waitlist.map((w) => `
+    <div class="bk-card">
+      <div>
+        <strong>${escapeHtml(w.name)}</strong> <span class="bk-meta">· ${escapeHtml(w.email)}</span>
+        <div class="bk-meta">
+          <span>${escapeHtml(w.date)}</span> at <span>${escapeHtml(w.time)}</span><br>
+          ${escapeHtml(w.service)} · with ${escapeHtml(w.therapist)}${w.phone ? "<br>📞 " + escapeHtml(w.phone) : ""}${w.notes ? "<br>📝 " + escapeHtml(w.notes) : ""}
+        </div>
+      </div>
+      <div class="bk-actions">
+        <button class="btn-ghost btn-sm" data-promote="${escapeHtml(w.id)}">Promote</button>
+        <button class="btn-danger" data-remove-wl="${escapeHtml(w.id)}">Remove</button>
+      </div>
+    </div>`).join("");
+
+  $$("#wlist [data-promote]").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/waitlist/" + encodeURIComponent(btn.dataset.promote) + "/promote", { method: "POST" });
+        if (res.status === 401) { location.replace("/admin"); return; }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+        await load();
+        await loadWaitlist();
+      } catch (e) {
+        alert(e.message || "Could not promote that entry.");
+        btn.disabled = false;
+      }
+    })
+  );
+
+  $$("#wlist [data-remove-wl]").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      if (!confirm("Remove this waitlist entry?")) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/waitlist/" + encodeURIComponent(btn.dataset.removeWl), { method: "DELETE" });
+        if (res.status === 401) { location.replace("/admin"); return; }
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        await loadWaitlist();
+      } catch {
+        alert("Could not remove that entry. Please try again.");
+        btn.disabled = false;
+      }
+    })
+  );
+}
+
 load();
+loadWaitlist();
