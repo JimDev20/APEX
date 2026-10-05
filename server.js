@@ -500,6 +500,66 @@ app.post("/api/booking/cancel", async (req, res) => {
   res.json({ ok: true, booking: publicBooking(booking), email: mailStatus.sent ? "sent" : mailStatus.reason });
 });
 
+app.post("/api/booking/reschedule", async (req, res) => {
+  const ip = clientIp(req);
+  if (lookupLocked(ip)) {
+    return res.status(429).json({ error: "Too many attempts. Try again in a few minutes." });
+  }
+  const { reference, email, date, time } = req.body || {};
+  const booking = lookupBooking(reference, email);
+  if (!booking) {
+    recordLookupFailure(ip);
+    return res.status(404).json({ error: NO_MATCH_ERROR });
+  }
+
+  const newDate = String(date || "").trim();
+  const newTime = String(time || "").trim();
+  if (!newDate || !newTime) {
+    return res.status(400).json({ error: "Pick a new date and time for your session." });
+  }
+  if (!ALL_SLOTS.has(newTime)) {
+    return res.status(400).json({ error: "Invalid time slot." });
+  }
+  if (booking.date === newDate && booking.time === newTime) {
+    return res.status(400).json({ error: "You're already booked at that time." });
+  }
+
+  const isoDate = new Date(newDate + "T00:00:00");
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  if (Number.isNaN(isoDate.getTime()) || isoDate < todayStart) {
+    return res.status(400).json({ error: "Date must be today or in the future." });
+  }
+
+  const slotDate = new Date(newDate + "T" + newTime + ":00");
+  if (Number.isNaN(slotDate.getTime()) || slotDate.getTime() <= Date.now() + LEAD_MS) {
+    return res.status(400).json({ error: "That time has already passed — please pick a later slot." });
+  }
+
+  const data = readData();
+  const current = data.bookings.find((b) => b.id === booking.id);
+  if (!current) {
+    return res.status(404).json({ error: NO_MATCH_ERROR });
+  }
+  const key = therapistKey(current.therapist);
+  const clash = data.bookings.find(
+    (b) => b.id !== current.id && b.date === newDate && b.time === newTime && slotConflicts(therapistKey(b.therapist), key)
+  );
+  if (clash) {
+    return res.status(409).json({ error: "That time slot is already booked. Please pick another." });
+  }
+
+  const from = `${current.date} ${current.time}`;
+  current.date = newDate;
+  current.time = newTime;
+  writeData(data);
+  lookupAttempts.delete(ip);
+
+  const mailStatus = await sendBookingConfirmation(current);
+  console.log(`[booking] ${current.id} rescheduled by customer (${from} -> ${newDate} ${newTime}).`);
+  res.json({ ok: true, booking: publicBooking(current), email: mailStatus.sent ? "sent" : mailStatus.reason });
+});
+
 const START_TIME = Date.now();
 
 /* Health check — no auth, no secrets, no customer data. For uptime monitors/Vercel. */

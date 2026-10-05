@@ -63,6 +63,7 @@ works in local development without any keys.
 | `POST` | `/api/waitlist/:id/promote` | admin | Promote a waitlist entry to a booking |
 | `DELETE` | `/api/waitlist/:id` | admin | Remove a waitlist entry |
 | `POST` | `/api/booking/lookup` | no | Find your booking with reference + email |
+| `POST` | `/api/booking/reschedule` | no | Move your booking to a new date/time, sends updated confirmation |
 | `POST` | `/api/booking/cancel` | no | Cancel your booking, sends cancellation email |
 | `GET` | `/api/bookings` | admin | List all bookings |
 | `GET` | `/api/bookings/export` | admin | Download all bookings as CSV |
@@ -70,7 +71,7 @@ works in local development without any keys.
 | `POST` | `/admin/login` | no | Exchange password for a session cookie |
 | `POST` | `/api/admin/logout` | admin | Clear the session |
 
-Self-service lookup and cancellation require both the booking reference and the
+Self-service lookup, rescheduling and cancellation require both the booking reference and the
 email address the booking was made with. Failures are rate limited per IP and
 return the same message either way, so a reference can't be probed for validity.
 These endpoints are intentionally not linked anywhere in the public site — the
