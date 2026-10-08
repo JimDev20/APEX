@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APEX — Manage your booking</title>
+  <meta name="description" content="Look up, reschedule or cancel your APEX Physiotherapy booking with your reference and email." />
+  <meta name="theme-color" content="#0b0e0c" />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0e0c'/%3E%3Ctext x='32' y='44' font-family='sans-serif' font-size='34' font-weight='700' fill='%233ddc84' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    body { padding-top: 70px; }
+    .manage-wrap { max-width: 640px; margin: 0 auto; }
+    .manage-card {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 16px; padding: 24px; margin-top: 20px;
+    }
+    .manage-card h2 { font-size: 1.15rem; margin: 0 0 4px; }
+    .manage-meta { color: var(--muted); font-size: 0.92rem; line-height: 1.7; }
+    .manage-meta strong { color: var(--text); }
+    .manage-meta code { color: var(--accent); }
+    .manage-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    .btn-danger {
+      background: none; border: 1px solid rgba(255,122,122,0.4); color: #ff7a7a;
+      border-radius: 10px; padding: 12px 18px; font-size: 0.95rem; font-family: inherit; cursor: pointer;
+    }
+    .btn-danger:hover { background: rgba(255,122,122,0.12); }
+    .btn-danger:disabled { opacity: 0.5; cursor: wait; }
+    .resched { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 20px; }
+    .resched label { display: block; font-size: 0.8rem; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin: 14px 0 8px; }
+    .resched input[type="date"] {
+      width: 100%; background: var(--bg-soft); border: 1px solid var(--line); color: var(--text);
+      border-radius: 10px; padding: 12px 14px; font-family: inherit; font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav scrolled">
+    <a class="nav-logo" href="/">APEX</a>
+    <ul class="nav-links">
+      <li><a href="/">Back to site</a></li>
+      <li><a href="/#booking">Book Session</a></li>
+    </ul>
+  </nav>
+
+  <main class="container manage-wrap">
+    <p class="eyebrow">MANAGE BOOKING</p>
+    <h1 class="section-title" style="text-align:left">Find your booking</h1>
+    <p class="manage-meta">Use the booking reference from your confirmation email plus the email you booked with. Free to move or cancel up to 24 hours before — inside 24 hours the session fee may apply.</p>
+
+    <form class="booking-form" id="lookupForm" novalidate>
+      <div class="bf-row">
+        <label>Booking reference <input id="mgRef" type="text" placeholder="e.g. bk_m3…" autocomplete="off" required /></label>
+        <label>Email <input id="mgEmail" type="email" placeholder="you@email.com" autocomplete="email" required /></label>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block" id="lookupBtn">Look up booking</button>
+      <p class="form-msg" id="lookupMsg" role="status" aria-live="polite"></p>
+    </form>
+
+    <section class="manage-card" id="resultCard" hidden>
+      <h2 id="bkTitle">Your session</h2>
+      <p class="manage-meta" id="bkDetails"></p>
+      <div class="manage-actions">
+        <a class="btn btn-ghost" id="icsBtn" href="#" download>Add to calendar (.ics)</a>
+        <a class="btn btn-ghost" id="gcalBtn" href="#" target="_blank" rel="noopener">Google Calendar</a>
+      </div>
+
+      <div class="resched">
+        <h2>Move to a new time</h2>
+        <label for="mgDate">New date</label>
+        <input type="date" id="mgDate" />
+        <label>New time <span id="rsDate" style="text-transform:none;letter-spacing:0"></span></label>
+        <div class="slots" id="rsSlots"><p class="slots-hint">Pick a date first.</p></div>
+        <div class="manage-actions">
+          <button type="button" class="btn btn-primary" id="reschedBtn" disabled>Reschedule</button>
+        </div>
+        <p class="form-msg" id="rsMsg" role="status" aria-live="polite"></p>
+      </div>
+
+      <div class="resched">
+        <h2>Cancel this booking</h2>
+        <p class="manage-meta">This frees the slot immediately and sends a cancellation email.</p>
+        <div class="manage-actions">
+          <button type="button" class="btn-danger" id="cancelBtn">Cancel booking</button>
+        </div>
+        <p class="form-msg" id="cancelMsg" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+  </main>
+
+  <script src="/js/manage.js"></script>
+</body>
+</html>

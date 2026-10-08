@@ -732,7 +732,7 @@ $("#bookingForm").addEventListener("submit", async (e) => {
           <button type="button" class="btn btn-ghost" data-download-ics>Add to calendar</button>
           <a class="btn btn-ghost" href="${escapeHtml(googleCalUrl(b))}" target="_blank" rel="noopener">Google Calendar</a>
         </div>
-        <p style="margin-top:16px;font-size:0.85rem">Plans changed? Reply to your confirmation email or message us on WhatsApp and we'll move you.</p>`
+        <p style="margin-top:16px;font-size:0.85rem">Plans changed? <a href="/manage.html">Manage your booking</a> with your reference + email, or message us on WhatsApp and we'll move you. Your reference: <strong>${escapeHtml(b.id)}</strong>.</p>`
     );
     $("#modalBody [data-download-ics]").addEventListener("click", () => downloadICS(b));
     $("#bookingForm").reset();
