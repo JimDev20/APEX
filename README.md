@@ -74,10 +74,9 @@ works in local development without any keys.
 Self-service lookup, rescheduling and cancellation require both the booking reference and the
 email address the booking was made with. Failures are rate limited per IP and
 return the same message either way, so a reference can't be probed for validity.
-These endpoints are intentionally not linked anywhere in the public site — the
-booking reference lives only in the confirmation email, and changes go through
-staff (admin panel, email or WhatsApp). The admin panel itself (`/admin`) is
-also not linked from the public navigation or footer.
+Customers can manage bookings at [/manage](http://localhost:3000/manage) (`public/manage.html`
++ `public/js/manage.js`) — linked from the nav, footer and booking confirmation.
+The admin panel itself (`/admin`) is also not linked from the public navigation or footer.
 
 ## Services
 
@@ -96,9 +95,11 @@ also not linked from the public navigation or footer.
 server.js            Express app, API routes, email, persistence
 public/
   index.html         Marketing site and booking flow
+  manage.html        Self-service lookup / reschedule / cancel
   admin.html         Admin panel
   css/style.css
   js/main.js         Services, pricing, FAQ, booking logic
+  js/manage.js       Manage-booking page logic
   js/admin.js        Admin login and booking management
   images/            Therapist portraits
 data/bookings.json   Bookings store (gitignored)
