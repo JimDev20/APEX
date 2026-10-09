@@ -2,12 +2,12 @@
 "use strict";
 
 const SERVICES = [
-  { id: "physio", icon: "🫁", name: "Physiotherapy", desc: "Hands-on assessment and treatment for pain, injury and restriction.", meta: "45–60 min", dur: 60 },
-  { id: "return-to-sport", icon: "🏃", name: "Return to Sport", desc: "Structured, load-progressive rehab built to get you back to play — safely.", meta: "60 min", dur: 60 },
-  { id: "personal-training", icon: "🏋️", name: "Personal Training", desc: "Individualised strength and conditioning, guided by your clinical baseline.", meta: "60 min", dur: 60 },
-  { id: "shockwave", icon: "⚡", name: "Shockwave Therapy", desc: "Focused extracorporeal shockwave for stubborn tendon and soft-tissue pain.", meta: "30 min", dur: 30 },
-  { id: "sports-massage", icon: "💆", name: "Sports Massage", desc: "Deep-tissue treatment for tight, overworked muscles and faster recovery.", meta: "45 min", dur: 45 },
-  { id: "mobility", icon: "🧘", name: "Mobility & Prevention", desc: "Build the range and resilience to stay ahead of injury, long term.", meta: "60 min", dur: 60 },
+  { id: "physio", icon: "physio", name: "Physiotherapy", desc: "Hands-on assessment and treatment for pain, injury and restriction.", meta: "45–60 min", dur: 60 },
+  { id: "return-to-sport", icon: "return-to-sport", name: "Return to Sport", desc: "Structured, load-progressive rehab built to get you back to play — safely.", meta: "60 min", dur: 60 },
+  { id: "personal-training", icon: "personal-training", name: "Personal Training", desc: "Individualised strength and conditioning, guided by your clinical baseline.", meta: "60 min", dur: 60 },
+  { id: "shockwave", icon: "shockwave", name: "Shockwave Therapy", desc: "Focused extracorporeal shockwave for stubborn tendon and soft-tissue pain.", meta: "30 min", dur: 30 },
+  { id: "sports-massage", icon: "sports-massage", name: "Sports Massage", desc: "Deep-tissue treatment for tight, overworked muscles and faster recovery.", meta: "45 min", dur: 45 },
+  { id: "mobility", icon: "mobility", name: "Mobility & Prevention", desc: "Build the range and resilience to stay ahead of injury, long term.", meta: "60 min", dur: 60 },
 ];
 
 const PRICES = {
@@ -26,9 +26,9 @@ const PRICE_MODES = {
 };
 
 const METHODS = [
-  { num: "01", name: "Manual Therapy", desc: "Precise hands-on mobilisation and soft-tissue work to unlock movement from the inside out." },
-  { num: "02", name: "Functional Training", desc: "Rehab that looks and feels like your life — not a clinic — so progress actually transfers." },
-  { num: "03", name: "Shockwave Therapy", desc: "Targeted acoustic wave treatment for tendon problems that have stopped responding to exercise." },
+  { name: "Manual Therapy", desc: "Precise hands-on mobilisation and soft-tissue work to unlock movement from the inside out." },
+  { name: "Functional Training", desc: "Rehab that looks and feels like your life — not a clinic — so progress actually transfers." },
+  { name: "Shockwave Therapy", desc: "Targeted acoustic wave treatment for tendon problems that have stopped responding to exercise." },
 ];
 
 const GALLERY = [
@@ -114,6 +114,16 @@ const ICONS = {
   phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/></svg>',
   mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2.5 6.8 8.4 5.7a2 2 0 0 0 2.2 0l8.4-5.7"/></svg>',
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.9L3 20.5l1.6-4.5a8.3 8.3 0 0 1-.9-3.8 8.4 8.4 0 0 1 8.4-8.4 8.4 8.4 0 0 1 8.9 7.7Z"/></svg>',
+};
+
+/* Service icons — one drawn set, same 1.7 stroke as ICONS. No emoji. */
+const SERVICE_ICONS = {
+  physio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-7 4 14 2-7h6"/></svg>',
+  "return-to-sport": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="4.5" r="2"/><path d="M5 12.5 9 11l2-4.5 3 3.5 5 1.5"/><path d="M9 11.5 6 19"/><path d="M13 14.5 12 21"/></svg>',
+  "personal-training": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11"/><path d="M17.5 6.5v11"/><path d="M3.5 9.5v5"/><path d="M20.5 9.5v5"/><path d="M6.5 12h11"/></svg>',
+  shockwave: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11L9.5 22 19 10h-6.5L13 2Z"/></svg>',
+  "sports-massage": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0"/><path d="M3 13c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0"/><path d="M3 18c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0"/></svg>',
+  mobility: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 3v4h-4"/></svg>',
 };
 
 const CONTACT_CARDS = [
@@ -229,10 +239,10 @@ function cycle(dir) {
 function renderServices() {
   $("#servicesGrid").innerHTML = SERVICES.map((s) => `
     <button type="button" class="card" data-svc="${s.id}">
-      <div class="card-icon" aria-hidden="true">${s.icon}</div>
+      <span class="card-icon" aria-hidden="true">${SERVICE_ICONS[s.icon] || ""}</span>
       <h3>${escapeHtml(s.name)}</h3>
       <p>${escapeHtml(s.desc)}</p>
-      <div class="card-meta">${escapeHtml(s.meta)}</div>
+      <span class="card-meta">${escapeHtml(s.meta)}</span>
     </button>`).join("");
   $$("#servicesGrid .card").forEach((c) =>
     c.addEventListener("click", () => {
@@ -250,7 +260,6 @@ function renderServices() {
 function renderMethods() {
   $("#methodsGrid").innerHTML = METHODS.map((m) => `
     <div class="method">
-      <span class="method-num" aria-hidden="true">${m.num}</span>
       <h3>${escapeHtml(m.name)}</h3>
       <p>${escapeHtml(m.desc)}</p>
     </div>`).join("");
@@ -843,19 +852,10 @@ function initAnimations() {
   }
   gsap.registerPlugin(ScrollTrigger);
 
+  /* One authored entrance: the hero. Sections stay visible by default so content
+     never depends on scroll reveals; functional tweens (stat counts, price
+     changes, testimonial slides) carry the remaining motion. */
   gsap.from(".hero-content > *", { opacity: 0, y: 30, duration: 0.9, stagger: 0.12, ease: "power3.out", delay: 0.2 });
-
-  $$(".section").forEach((sec) => {
-    const targets = sec.querySelectorAll(".card, .method, .step, .g-item, .char-card, .stat, .faq-item, .c-card, .price-card");
-    if (!targets.length) return;
-    gsap.fromTo(targets,
-      { opacity: 0, y: 26 }, {
-        opacity: 1, y: 0, duration: 0.7, ease: "power2.out", stagger: 0.07,
-        scrollTrigger: { trigger: sec, start: "top 82%" },
-      });
-  });
-
-  gsap.from(".char-panel", { opacity: 0, y: 30, duration: 0.8, ease: "power2.out", scrollTrigger: { trigger: "#charPanel", start: "top 85%" } });
 
   $$(".stat-num").forEach((el) => {
     const end = +el.dataset.count;
